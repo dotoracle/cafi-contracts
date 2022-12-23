@@ -11,33 +11,47 @@ use casper_types::ApiError;
 ///
 /// Such a user error should be in the range `[0..(u16::MAX - 4)]` (i.e. [0, 65532]) to avoid
 /// conflicting with the other `Error` variants.
+#[repr(u16)]
+#[derive(Clone, Copy)]
 pub enum Error {
     /// ERC20 contract called from within an invalid context.
-    InvalidContext,
+    InvalidContext = 0,
     /// Spender does not have enough balance.
-    InsufficientBalance,
+    InsufficientBalance = 1,
     /// Spender does not have enough allowance approved.
-    InsufficientAllowance,
+    InsufficientAllowance = 2,
     /// Operation would cause an integer overflow.
-    Overflow,
+    Overflow = 3,
     /// User error.
-    User(u16),
-}
+    FailedToGetArgBytes = 200,
+    FailedToCreateDictionary = 201,
+    MissingContractOwner = 202,
+    InvalidContractOwner = 203,
+    MissingSupportedToken = 204,
+    InvalidSupportedToken = 205,
+    CannotGetWhitelistAddrressArg = 206,
+    MissingEnabled = 207,
+    InvalidEnabled = 208,
+    CannotGetEnabled = 209,
+    SameEnabledValue = 210,
+    MissingDecimals = 211,
+    InvalidDecimals = 212,
+    SameDecimalsValue = 213,
+    MissingFee = 214,
+    InvalidFee = 215,
+    MissingFeeReceiver = 216,
+    InvalidFeeReceiver = 217,
+    InvalidCaller = 218,
 
+
+}
 const ERROR_INVALID_CONTEXT: u16 = u16::MAX;
 const ERROR_INSUFFICIENT_BALANCE: u16 = u16::MAX - 1;
 const ERROR_INSUFFICIENT_ALLOWANCE: u16 = u16::MAX - 2;
 const ERROR_OVERFLOW: u16 = u16::MAX - 3;
 
 impl From<Error> for ApiError {
-    fn from(error: Error) -> Self {
-        let user_error = match error {
-            Error::InvalidContext => ERROR_INVALID_CONTEXT,
-            Error::InsufficientBalance => ERROR_INSUFFICIENT_BALANCE,
-            Error::InsufficientAllowance => ERROR_INSUFFICIENT_ALLOWANCE,
-            Error::Overflow => ERROR_OVERFLOW,
-            Error::User(user_error) => user_error,
-        };
-        ApiError::User(user_error)
+    fn from(e: Error) -> Self {
+        ApiError::User(e as u16)
     }
 }

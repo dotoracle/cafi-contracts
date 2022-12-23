@@ -55,3 +55,16 @@ pub const TOTAL_SUPPLY_RUNTIME_ARG_NAME: &str = "total_supply";
 
 pub const MINT_ENTRY_POINT_NAME : &str = "mint";
 pub const BURN_ENTRY_POINT_NAME : &str = "burn";
+pub const SUPPORTED_TOKEN_DECIMALS : &str = "supported_token_decimals";
+pub const ARG_SUPPORTED_TOKEN : &str = "supported_token";
+pub const SUPPORTED_TOKEN : &str = "supported_token";
+pub const ARG_ENABLED : &str = "enabled";
+pub const ENABLED : &str = "enabled";
+pub const ARG_DECIMALS : &str = "decimals";
+pub const FEE : &str = "fee";
+pub const FEE_RECEIVER : &str = "fee_receiver";
+pub const CONTRACT_OWNER : &str = "contract_owner";
+///Redeem token
+pub const REDEEM_TOKEN_RUNTIME_ARG_NAME : &str = "redeem_token";
+///Deposit token
+pub const DEPOSIT_TOKEN_RUNTIME_ARG_NAME : &str = "deposit_token";

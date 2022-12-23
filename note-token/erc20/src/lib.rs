@@ -22,6 +22,7 @@ pub mod constants;
 mod detail;
 pub mod entry_points;
 mod error;
+mod helpers;
 mod total_supply;
 
 use alloc::string::{String, ToString};
@@ -32,11 +33,14 @@ use casper_contract::{
     contract_api::{runtime, storage},
     unwrap_or_revert::UnwrapOrRevert,
 };
-use casper_types::{contracts::NamedKeys, EntryPoints, Key, URef, U256};
+use casper_types::{
+    contracts::NamedKeys, runtime_args, ContractHash, EntryPoints, HashAddr,RuntimeArgs, Key, URef, U256,
+};
 
 pub use address::Address;
 use constants::*;
 pub use error::Error;
+use helpers::*;
 
 /// Implementation of ERC20 standard functionality.
 #[derive(Default)]
@@ -44,14 +48,24 @@ pub struct ERC20 {
     balances_uref: OnceCell<URef>,
     allowances_uref: OnceCell<URef>,
     total_supply_uref: OnceCell<URef>,
+    supported_token_uref: OnceCell<URef>,
+    supported_token_decimal_uref: OnceCell<URef>,
 }
 
 impl ERC20 {
-    fn new(balances_uref: URef, allowances_uref: URef, total_supply_uref: URef) -> Self {
+    fn new(
+        balances_uref: URef,
+        allowances_uref: URef,
+        total_supply_uref: URef,
+        supported_token: URef,
+        supported_token_decimals: URef,
+    ) -> Self {
         Self {
             balances_uref: balances_uref.into(),
             allowances_uref: allowances_uref.into(),
             total_supply_uref: total_supply_uref.into(),
+            supported_token_uref: supported_token.into(),
+            supported_token_decimal_uref: supported_token_decimals.into(),
         }
     }
 
@@ -112,6 +126,9 @@ impl ERC20 {
         symbol: String,
         decimals: u8,
         initial_supply: U256,
+        fee: U256,
+        fee_receiver: Key,
+        contract_owner: Key,
     ) -> Result<ERC20, Error> {
         let default_entry_points = entry_points::default();
         ERC20::install_custom(
@@ -121,6 +138,9 @@ impl ERC20 {
             initial_supply,
             ERC20_TOKEN_CONTRACT_KEY_NAME,
             default_entry_points,
+            fee,
+            fee_receiver,
+            contract_owner,
         )
     }
 
@@ -194,15 +214,159 @@ impl ERC20 {
     ///
     /// This offers no security whatsoever, hence it is advised to NOT expose this method through a
     /// public entry point.
-    pub fn mint(&mut self, owner: Address, amount: U256) -> Result<(), Error> {
+    pub fn deposit(
+        &mut self,
+        owner: Address,
+        deposit_token: Key,
+        amount: U256,
+    ) -> Result<(), Error> {
+        // Check as if deposit token was supported
+
+        let deposit_token_dictionary_key = make_dictionary_item_key_for_contract(deposit_token);
+        let enabled_value =
+            get_dictionary_value_from_key::<bool>(SUPPORTED_TOKEN, &deposit_token_dictionary_key)
+                .unwrap_or_revert();
+        if enabled_value != true {
+            runtime::revert(Error::InvalidSupportedToken);
+        }
+
+        /// TODO: Calculate NOTE to mint to users
+        let deposit_token_decimals_value = get_dictionary_value_from_key::<u8>(
+            SUPPORTED_TOKEN_DECIMALS,
+            &deposit_token_dictionary_key,
+        )
+        .unwrap_or_revert_with(Error::InvalidSupportedToken);
+
+        let this_decimals: u8 = self.decimals();
+
+        // Transfer amount to the contract
+
+        let caller = get_immediate_caller_key();
+        let this_self_key: Key = get_self_key();
+        let deposit_token_contract_hash_addr: HashAddr =
+            deposit_token.into_hash().unwrap_or_revert();
+        let deposit_token_contract_hash: ContractHash =
+            ContractHash::new(deposit_token_contract_hash_addr);
+
+        let _: () = runtime::call_contract(
+            deposit_token_contract_hash, // deposit_token contract
+            TRANSFER_FROM_ENTRY_POINT_NAME,
+            runtime_args! {
+                "owner" => caller,
+                "recipient" => this_self_key,
+                "amount" => amount,
+            },
+        );
+
+        let maybe_output_amount =
+            amount / U256::from(deposit_token_decimals_value) * U256::from(this_decimals);
+
+        // Mint NOTE to owner
         let new_balance = {
             let balance = self.read_balance(owner);
-            balance.checked_add(amount).ok_or(Error::Overflow)?
+            balance
+                .checked_add(maybe_output_amount)
+                .ok_or(Error::Overflow)?
         };
         let new_total_supply = {
             let total_supply: U256 = self.read_total_supply();
-            total_supply.checked_add(amount).ok_or(Error::Overflow)?
+            total_supply
+                .checked_add(maybe_output_amount)
+                .ok_or(Error::Overflow)?
         };
+        self.write_balance(owner, new_balance);
+        self.write_total_supply(new_total_supply);
+        Ok(())
+    }
+
+    /// Burn `amount` new tokens and adds them to `owner`'s balance and to the token total supply.
+    ///
+    /// # Security
+    ///
+    /// This offers no security whatsoever, hence it is advised to NOT expose this method through a
+    /// public entry point.
+    pub fn redeem(&mut self, owner: Address, redeem_token: Key, amount: U256) -> Result<(), Error> {
+        let this_self_key: Key = get_self_key();
+        let caller = get_immediate_caller_address().unwrap_or_revert();
+        if caller != owner {
+            runtime::revert(Error::InvalidCaller);
+        }
+
+        // Check if overFlow
+        let new_balance = {
+            let balance = self.read_balance(owner);
+            balance
+                .checked_sub(amount)
+                .ok_or(Error::InsufficientBalance)?
+        };
+        let new_total_supply = {
+            let total_supply = self.read_total_supply();
+            total_supply.checked_sub(amount).ok_or(Error::Overflow)?
+        };
+
+        // Check as if deposit token was supported
+
+        let redeem_token_dictionary_key = make_dictionary_item_key_for_contract(redeem_token);
+        let enabled_value =
+            get_dictionary_value_from_key::<bool>(SUPPORTED_TOKEN, &redeem_token_dictionary_key)
+                .unwrap_or_revert();
+        if enabled_value != true {
+            runtime::revert(Error::InvalidSupportedToken);
+        }
+
+        // TODO: Calculate NOTE to burn to users
+        let redeem_token_decimals_value = get_dictionary_value_from_key::<u8>(
+            SUPPORTED_TOKEN_DECIMALS,
+            &redeem_token_dictionary_key,
+        )
+        .unwrap_or_revert_with(Error::InvalidSupportedToken);
+
+        let this_decimals: u8 = self.decimals();
+        let maybe_output_amount =
+            amount / U256::from(this_decimals) * U256::from(redeem_token_decimals_value);
+
+        let current_fee = helpers::get_stored_value_with_user_errors::<U256>(
+            "fee",
+            Error::MissingFee,
+            Error::InvalidFee,
+        );
+        let current_fee_receiver = helpers::get_stored_value_with_user_errors::<Key>(
+            "fee_receiver",
+            Error::MissingFeeReceiver,
+            Error::InvalidFeeReceiver,
+        );
+
+        let needed_fee = maybe_output_amount * current_fee;
+        let maybe_output_amount_after_fee: U256 = maybe_output_amount - needed_fee;
+
+        // transfer fee to receiver
+
+        let redeem_token_contract_hash_addr: HashAddr = redeem_token.into_hash().unwrap_or_revert();
+        let redeem_token_contract_hash: ContractHash =
+            ContractHash::new(redeem_token_contract_hash_addr);
+        let _: () = runtime::call_contract(
+            redeem_token_contract_hash, // wcspr contract
+            TRANSFER_FROM_ENTRY_POINT_NAME,
+            runtime_args! {
+                "owner" => this_self_key,
+                "recipient" => current_fee_receiver,
+                "amount" => needed_fee,
+            },
+        );
+
+        // Transfer maybe_output_amount_after_fee to the contract
+
+        let _: () = runtime::call_contract(
+            redeem_token_contract_hash, // wcspr contract
+            TRANSFER_FROM_ENTRY_POINT_NAME,
+            runtime_args! {
+                "owner" => this_self_key,
+                "recipient" => owner,
+                "amount" => maybe_output_amount_after_fee,
+            },
+        );
+
+        // Burn NOTE from owner
         self.write_balance(owner, new_balance);
         self.write_total_supply(new_total_supply);
         Ok(())
@@ -231,6 +395,107 @@ impl ERC20 {
         Ok(())
     }
 
+    /// Set supported tokens that were enabled for users to deposit into contract to mint NOTE ERC20
+    /// The dictionary values
+    #[no_mangle]
+    pub extern "C" fn set_supported_token() -> Result<(), Error> {
+        // Check caller must be DEV account
+        let caller = helpers::get_immediate_caller_key();
+        let current_owner = helpers::get_stored_value_with_user_errors::<Key>(
+            "contract_owner",
+            Error::MissingContractOwner,
+            Error::InvalidContractOwner,
+        );
+
+        if caller != current_owner {
+            runtime::revert(Error::InvalidContractOwner);
+        }
+
+        // Take valid new_addresses from runtime args
+        //let new_addresses_whitelist: Key = runtime::get_named_arg(ARG_NEW_ADDRESSES_WHITELIST);
+        let supported_token = helpers::get_named_arg_with_user_errors::<Key>(
+            ARG_SUPPORTED_TOKEN,
+            Error::MissingSupportedToken,
+            Error::InvalidSupportedToken,
+        )
+        .unwrap_or_revert_with(Error::CannotGetWhitelistAddrressArg);
+
+        let enabled = helpers::get_named_arg_with_user_errors::<bool>(
+            ARG_ENABLED,
+            Error::MissingEnabled,
+            Error::InvalidEnabled,
+        )
+        .unwrap_or_revert_with(Error::CannotGetEnabled);
+
+        // Get new address if valid.
+        let token_dictionary_key = helpers::make_dictionary_item_key_for_contract(supported_token);
+
+        // Check if new_address already in dictionary with same enabled key
+        if get_dictionary_value_from_key::<bool>(SUPPORTED_TOKEN, &token_dictionary_key).is_some() {
+            let old_enabled: bool =
+                get_dictionary_value_from_key::<bool>(SUPPORTED_TOKEN, &token_dictionary_key)
+                    .unwrap_or_revert();
+            if old_enabled == enabled {
+                runtime::revert(Error::SameEnabledValue);
+            }
+        }
+        // Add new_addresses into dictionary
+
+        write_dictionary_value_from_key(SUPPORTED_TOKEN, &token_dictionary_key, enabled);
+        Ok(())
+    }
+
+    #[no_mangle]
+    pub extern "C" fn set_supported_token_decimals() -> Result<(), Error> {
+        // Check caller must be DEV account
+        let caller = helpers::get_immediate_caller_key();
+        let current_owner = helpers::get_stored_value_with_user_errors::<Key>(
+            "contract_owner",
+            Error::MissingContractOwner,
+            Error::InvalidContractOwner,
+        );
+
+        if caller != current_owner {
+            runtime::revert(Error::InvalidContractOwner);
+        }
+
+        // Take valid new_addresses from runtime args
+        //let new_addresses_whitelist: Key = runtime::get_named_arg(ARG_NEW_ADDRESSES_WHITELIST);
+        let supported_token = helpers::get_named_arg_with_user_errors::<Key>(
+            ARG_SUPPORTED_TOKEN,
+            Error::MissingSupportedToken,
+            Error::InvalidSupportedToken,
+        )
+        .unwrap_or_revert_with(Error::CannotGetWhitelistAddrressArg);
+
+        let decimals = helpers::get_named_arg_with_user_errors::<u8>(
+            ARG_DECIMALS,
+            Error::MissingDecimals,
+            Error::InvalidDecimals,
+        )
+        .unwrap_or_revert_with(Error::CannotGetEnabled);
+
+        // Get new address if valid.
+        let token_dictionary_key = helpers::make_dictionary_item_key_for_contract(supported_token);
+
+        // Check if new_address already in dictionary with same enabled key
+        if get_dictionary_value_from_key::<u8>(SUPPORTED_TOKEN_DECIMALS, &token_dictionary_key)
+            .is_some()
+        {
+            let old_decimal: u8 = get_dictionary_value_from_key::<u8>(
+                SUPPORTED_TOKEN_DECIMALS,
+                &token_dictionary_key,
+            )
+            .unwrap_or_revert();
+            if old_decimal == decimals {
+                runtime::revert(Error::SameDecimalsValue);
+            }
+        }
+        // Add new_addresses into dictionary
+
+        write_dictionary_value_from_key(SUPPORTED_TOKEN_DECIMALS, &token_dictionary_key, decimals);
+        Ok(())
+    }
     /// Installs the ERC20 contract with a custom set of entry points.
     ///
     /// # Warning
@@ -246,11 +511,21 @@ impl ERC20 {
         initial_supply: U256,
         contract_key_name: &str,
         entry_points: EntryPoints,
+        fee: U256,
+        fee_receiver: Key,
+        contract_owner: Key,
     ) -> Result<ERC20, Error> {
         let balances_uref = storage::new_dictionary(BALANCES_KEY_NAME).unwrap_or_revert();
         let allowances_uref = storage::new_dictionary(ALLOWANCES_KEY_NAME).unwrap_or_revert();
         // We need to hold on a RW access rights because tokens can be minted or burned.
         let total_supply_uref = storage::new_uref(initial_supply).into_read_write();
+
+        // Add custom dictionary for NOTE ERC20
+        let supported_token_uref = storage::new_dictionary(SUPPORTED_TOKEN)
+            .unwrap_or_revert_with(Error::FailedToCreateDictionary);
+
+        let supported_token_decimals_uref = storage::new_dictionary(SUPPORTED_TOKEN_DECIMALS)
+            .unwrap_or_revert_with(Error::FailedToCreateDictionary);
 
         let mut named_keys = NamedKeys::new();
 
@@ -293,6 +568,16 @@ impl ERC20 {
         named_keys.insert(BALANCES_KEY_NAME.to_string(), balances_dictionary_key);
         named_keys.insert(ALLOWANCES_KEY_NAME.to_string(), allowances_dictionary_key);
         named_keys.insert(TOTAL_SUPPLY_KEY_NAME.to_string(), total_supply_key);
+        // Add custom named_keys for NOTE ERC20
+        named_keys.insert("fee".to_string(), storage::new_uref(fee).into());
+        named_keys.insert(
+            "fee_receiver".to_string(),
+            Key::from(storage::new_uref(fee_receiver)),
+        );
+        named_keys.insert(
+            "contract_owner".to_string(),
+            Key::from(storage::new_uref(contract_owner)),
+        );
 
         let (contract_hash, _version) =
             storage::new_contract(entry_points, Some(named_keys), None, None);
@@ -304,6 +589,8 @@ impl ERC20 {
             balances_uref,
             allowances_uref,
             total_supply_uref,
+            supported_token_uref,
+            supported_token_decimals_uref,
         ))
     }
 }

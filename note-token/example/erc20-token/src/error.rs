@@ -30,6 +30,10 @@ pub enum ErrorERC20 {
     InvalidMintAmount = 104,
     FailCallToMint = 105,
     FailCallToBurn = 106,
+    MissingRedeemToken = 107,
+    InvalidRedeemToken = 108,
+    MissingDepositToken = 109,
+    InvalidDepositToken = 110,
 
 }
 

@@ -12,7 +12,7 @@ use alloc::string::String;
 
 use casper_contract::{contract_api::runtime, unwrap_or_revert::UnwrapOrRevert};
 use casper_erc20::{constants::*, Address, ERC20};
-use casper_types::{CLValue, U256};
+use casper_types::{CLValue, Key, U256};
 
 use crate::error::ErrorERC20;
 
@@ -66,7 +66,7 @@ pub extern "C" fn approve() {
 }
 
 #[no_mangle]
-pub extern "C" fn mint() {
+pub extern "C" fn deposit() {
     let owner: Address = detail::get_named_arg_with_user_errors::<Address>(
         OWNER_RUNTIME_ARG_NAME,
         ErrorERC20::MissingOwner,
@@ -81,12 +81,20 @@ pub extern "C" fn mint() {
     )
     .unwrap_or_revert();
 
-    ERC20::default().mint(owner, amount).unwrap_or_revert_with(ErrorERC20::FailCallToMint);
+    let deposit_token: Key = detail::get_named_arg_with_user_errors::<Key>(
+        DEPOSIT_TOKEN_RUNTIME_ARG_NAME,
+        ErrorERC20::MissingDepositToken,
+        ErrorERC20::InvalidDepositToken,
+    )
+    .unwrap_or_revert();
+
+    ERC20::default()
+        .deposit(owner,deposit_token, amount)
+        .unwrap_or_revert_with(ErrorERC20::FailCallToMint);
 }
 
-
 #[no_mangle]
-pub extern "C" fn burn() {
+pub extern "C" fn redeem() {
     let owner: Address = detail::get_named_arg_with_user_errors::<Address>(
         OWNER_RUNTIME_ARG_NAME,
         ErrorERC20::MissingOwner,
@@ -100,8 +108,16 @@ pub extern "C" fn burn() {
         ErrorERC20::InvalidMintAmount,
     )
     .unwrap_or_revert();
+    let redeem_token: Key = detail::get_named_arg_with_user_errors::<Key>(
+        REDEEM_TOKEN_RUNTIME_ARG_NAME,
+        ErrorERC20::MissingRedeemToken,
+        ErrorERC20::InvalidRedeemToken,
+    )
+    .unwrap_or_revert();
 
-    ERC20::default().burn(owner, amount).unwrap_or_revert_with(ErrorERC20::FailCallToBurn);
+    ERC20::default()
+        .redeem(owner, redeem_token, amount)
+        .unwrap_or_revert_with(ErrorERC20::FailCallToBurn);
 }
 
 #[no_mangle]
@@ -128,6 +144,18 @@ fn call() {
     let symbol: String = runtime::get_named_arg(SYMBOL_RUNTIME_ARG_NAME);
     let decimals = runtime::get_named_arg(DECIMALS_RUNTIME_ARG_NAME);
     let total_supply = runtime::get_named_arg(TOTAL_SUPPLY_RUNTIME_ARG_NAME);
+    let fee: U256 = runtime::get_named_arg(FEE);
+    let fee_receiver: Key = runtime::get_named_arg(FEE_RECEIVER);
+    let contract_owner: Key = runtime::get_named_arg(CONTRACT_OWNER);
 
-    let _token = ERC20::install(name, symbol, decimals, total_supply).unwrap_or_revert();
+    let _token = ERC20::install(
+        name,
+        symbol,
+        decimals,
+        total_supply,
+        fee,
+        fee_receiver,
+        contract_owner,
+    )
+    .unwrap_or_revert();
 }

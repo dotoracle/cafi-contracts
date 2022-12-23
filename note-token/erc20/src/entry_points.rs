@@ -111,11 +111,12 @@ pub fn total_supply() -> EntryPoint {
 }
 
 ///mint entry point
-pub fn mint() -> EntryPoint {
+pub fn deposit() -> EntryPoint {
     EntryPoint::new(
         String::from(MINT_ENTRY_POINT_NAME),
         vec![
             Parameter::new(OWNER_RUNTIME_ARG_NAME, Address::cl_type()),
+            Parameter::new(DEPOSIT_TOKEN_RUNTIME_ARG_NAME, CLType::Key),
             Parameter::new(AMOUNT_RUNTIME_ARG_NAME, U256::cl_type()),
         ],
         CLType::Unit,
@@ -124,13 +125,15 @@ pub fn mint() -> EntryPoint {
     )
 }
 
-///mint entry point
-pub fn burn() -> EntryPoint {
+///redeem entry point
+pub fn redeem() -> EntryPoint {
     EntryPoint::new(
         String::from(BURN_ENTRY_POINT_NAME),
         vec![
             Parameter::new(OWNER_RUNTIME_ARG_NAME, Address::cl_type()),
             Parameter::new(AMOUNT_RUNTIME_ARG_NAME, U256::cl_type()),
+            Parameter::new(REDEEM_TOKEN_RUNTIME_ARG_NAME, CLType::Key),
+
         ],
         CLType::Unit,
         EntryPointAccess::Public,
@@ -162,7 +165,7 @@ pub fn default() -> EntryPoints {
     entry_points.add_entry_point(approve());
     entry_points.add_entry_point(allowance());
     entry_points.add_entry_point(transfer_from());
-    entry_points.add_entry_point(mint());
-    entry_points.add_entry_point(burn());
+    entry_points.add_entry_point(deposit());
+    entry_points.add_entry_point(redeem());
     entry_points
 }
