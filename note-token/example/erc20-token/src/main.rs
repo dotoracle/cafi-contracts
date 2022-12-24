@@ -121,6 +121,49 @@ pub extern "C" fn redeem() {
 }
 
 #[no_mangle]
+pub extern "C" fn set_supported_token() {
+
+    let enable: bool = detail::get_named_arg_with_user_errors::<bool>(
+        ARG_ENABLED,
+        ErrorERC20::MissingEnabled,
+        ErrorERC20::InvalidEnabled,
+    )
+    .unwrap_or_revert();
+    let supported_token: Key = detail::get_named_arg_with_user_errors::<Key>(
+        ARG_SUPPORTED_TOKEN,
+        ErrorERC20::MissingSupportedToken,
+        ErrorERC20::InvalidSupportedToken,
+    )
+    .unwrap_or_revert();
+
+    ERC20::default()
+        .set_supported_token(supported_token, enable)
+        .unwrap_or_revert_with(ErrorERC20::FailCallToBurn);
+}
+
+#[no_mangle]
+pub extern "C" fn set_supported_token_decimals() {
+
+    let decimals: u8 = detail::get_named_arg_with_user_errors::<u8>(
+        ARG_DECIMALS,
+        ErrorERC20::MissingDecimals,
+        ErrorERC20::InvalidDecimals,
+    )
+    .unwrap_or_revert();
+    let supported_token: Key = detail::get_named_arg_with_user_errors::<Key>(
+        ARG_SUPPORTED_TOKEN,
+        ErrorERC20::MissingSupportedToken,
+        ErrorERC20::InvalidSupportedToken,
+    )
+    .unwrap_or_revert();
+
+    ERC20::default()
+        .set_supported_token_decimals(supported_token, decimals)
+        .unwrap_or_revert_with(ErrorERC20::FailCallToBurn);
+}
+
+
+#[no_mangle]
 pub extern "C" fn allowance() {
     let owner: Address = runtime::get_named_arg(OWNER_RUNTIME_ARG_NAME);
     let spender: Address = runtime::get_named_arg(SPENDER_RUNTIME_ARG_NAME);

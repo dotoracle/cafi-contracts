@@ -17,6 +17,8 @@ pub const TOTAL_SUPPLY_KEY_NAME: &str = "total_supply";
 
 /// Name of `name` entry point.
 pub const NAME_ENTRY_POINT_NAME: &str = "name";
+pub const ENTRY_POINT_INIT : &str = "init";
+pub const INIT_ENTRY_POINT_NAME : &str = "init";
 /// Name of `symbol` entry point.
 pub const SYMBOL_ENTRY_POINT_NAME: &str = "symbol";
 /// Name of `decimals` entry point.
@@ -53,8 +55,8 @@ pub const DECIMALS_RUNTIME_ARG_NAME: &str = "decimals";
 /// Name of `total_supply` runtime argument.
 pub const TOTAL_SUPPLY_RUNTIME_ARG_NAME: &str = "total_supply";
 
-pub const MINT_ENTRY_POINT_NAME : &str = "mint";
-pub const BURN_ENTRY_POINT_NAME : &str = "burn";
+pub const REDEEM_ENTRY_POINT_NAME : &str = "redeem";
+pub const DEPOSIT_ENTRY_POINT_NAME : &str = "deposit";
 pub const SUPPORTED_TOKEN_DECIMALS : &str = "supported_token_decimals";
 pub const ARG_SUPPORTED_TOKEN : &str = "supported_token";
 pub const SUPPORTED_TOKEN : &str = "supported_token";
@@ -68,3 +70,6 @@ pub const CONTRACT_OWNER : &str = "contract_owner";
 pub const REDEEM_TOKEN_RUNTIME_ARG_NAME : &str = "redeem_token";
 ///Deposit token
 pub const DEPOSIT_TOKEN_RUNTIME_ARG_NAME : &str = "deposit_token";
+pub const SET_SUPPORTED_TOKEN_ENTRY_POINT_NAME : &str = "set_supported_token";
+pub const SET_SUPPORTED_TOKEN_DECIMALS_ENTRY_POINT_NAME : &str = "set_supported_token_decimals";
+

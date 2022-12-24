@@ -10,6 +10,20 @@ use crate::{
     constants::*,
 };
 
+
+
+/// Returns the `init` entry point.
+pub fn init() -> EntryPoint {
+    EntryPoint::new(
+        String::from(INIT_ENTRY_POINT_NAME),
+        vec![
+        ],
+        CLType::Unit,
+        EntryPointAccess::Public,
+        EntryPointType::Contract,
+    )
+}
+
 /// Returns the `name` entry point.
 pub fn name() -> EntryPoint {
     EntryPoint::new(
@@ -20,6 +34,7 @@ pub fn name() -> EntryPoint {
         EntryPointType::Contract,
     )
 }
+
 
 /// Returns the `symbol` entry point.
 pub fn symbol() -> EntryPoint {
@@ -113,7 +128,7 @@ pub fn total_supply() -> EntryPoint {
 ///mint entry point
 pub fn deposit() -> EntryPoint {
     EntryPoint::new(
-        String::from(MINT_ENTRY_POINT_NAME),
+        String::from(DEPOSIT_ENTRY_POINT_NAME),
         vec![
             Parameter::new(OWNER_RUNTIME_ARG_NAME, Address::cl_type()),
             Parameter::new(DEPOSIT_TOKEN_RUNTIME_ARG_NAME, CLType::Key),
@@ -128,11 +143,41 @@ pub fn deposit() -> EntryPoint {
 ///redeem entry point
 pub fn redeem() -> EntryPoint {
     EntryPoint::new(
-        String::from(BURN_ENTRY_POINT_NAME),
+        String::from(REDEEM_ENTRY_POINT_NAME),
         vec![
             Parameter::new(OWNER_RUNTIME_ARG_NAME, Address::cl_type()),
             Parameter::new(AMOUNT_RUNTIME_ARG_NAME, U256::cl_type()),
             Parameter::new(REDEEM_TOKEN_RUNTIME_ARG_NAME, CLType::Key),
+
+        ],
+        CLType::Unit,
+        EntryPointAccess::Public,
+        EntryPointType::Contract,
+    )
+}
+
+///set_supported_token entry point
+pub fn set_supported_token() -> EntryPoint {
+    EntryPoint::new(
+        String::from(SET_SUPPORTED_TOKEN_ENTRY_POINT_NAME),
+        vec![
+            Parameter::new(ARG_ENABLED, CLType::Bool),
+            Parameter::new(ARG_SUPPORTED_TOKEN, CLType::Key),
+
+        ],
+        CLType::Unit,
+        EntryPointAccess::Public,
+        EntryPointType::Contract,
+    )
+}
+
+///set_supported_token_decimals entry point
+pub fn set_supported_token_decimals() -> EntryPoint {
+    EntryPoint::new(
+        String::from(SET_SUPPORTED_TOKEN_DECIMALS_ENTRY_POINT_NAME),
+        vec![
+            Parameter::new(ARG_DECIMALS, CLType::U8),
+            Parameter::new(ARG_SUPPORTED_TOKEN, CLType::Key),
 
         ],
         CLType::Unit,
@@ -156,6 +201,7 @@ pub fn decimals() -> EntryPoint {
 /// Returns the default set of ERC20 token entry points.
 pub fn default() -> EntryPoints {
     let mut entry_points = EntryPoints::new();
+    entry_points.add_entry_point(init());
     entry_points.add_entry_point(name());
     entry_points.add_entry_point(symbol());
     entry_points.add_entry_point(decimals());
@@ -167,5 +213,7 @@ pub fn default() -> EntryPoints {
     entry_points.add_entry_point(transfer_from());
     entry_points.add_entry_point(deposit());
     entry_points.add_entry_point(redeem());
+    entry_points.add_entry_point(set_supported_token());
+    entry_points.add_entry_point(set_supported_token_decimals());
     entry_points
 }

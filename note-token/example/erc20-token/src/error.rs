@@ -34,6 +34,12 @@ pub enum ErrorERC20 {
     InvalidRedeemToken = 108,
     MissingDepositToken = 109,
     InvalidDepositToken = 110,
+    MissingSupportedToken = 111,
+    InvalidSupportedToken = 112,
+    MissingEnabled = 113,
+    InvalidEnabled = 114,
+    MissingDecimals = 115,
+    InvalidDecimals = 116,
 
 }
 
