@@ -143,10 +143,23 @@ impl ERC20 {
     /// init function
     #[no_mangle]
     pub extern "C" fn init() {
+        if helpers::named_uref_exists(CONTRACT_NAME) {
+            runtime::revert(Error::ContractAlreadyInitialized);
+        }    
         storage::new_dictionary("supported_token")
         .unwrap_or_revert_with(Error::FailedToCreateDictionary);
         storage::new_dictionary("supported_token_decimals")
         .unwrap_or_revert_with(Error::FailedToCreateDictionary);
+        // Start collecting the runtime arguments.
+        let contract_name: String = helpers::get_named_arg_with_user_errors(
+            CONTRACT_NAME,
+            Error::MissingContractName,
+            Error::InvalidContractName,
+        )
+        .unwrap_or_revert();
+
+
+    runtime::put_key(CONTRACT_NAME, storage::new_uref(contract_name).into());
 
     }
 
@@ -588,6 +601,7 @@ impl ERC20 {
             contract_hash,
             ENTRY_POINT_INIT,
             runtime_args! {
+                CONTRACT_NAME => "this_is_note",
             },
         );
 

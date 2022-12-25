@@ -42,6 +42,9 @@ pub enum Error {
     MissingFeeReceiver = 216,
     InvalidFeeReceiver = 217,
     InvalidCaller = 218,
+    ContractAlreadyInitialized = 219,
+    MissingContractName = 220,
+    InvalidContractName = 221,
 
 
 }

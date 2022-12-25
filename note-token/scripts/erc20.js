@@ -474,18 +474,18 @@ const ERC20 = class {
 
         //console.log("ownerKey: ", ownerKey)
 
-        const contracthashbytearray = new CLByteArray(Uint8Array.from(Buffer.from(depositToken, 'hex')));
+        const contracthashbytearray = new CLByteArray(Uint8Array.from(Buffer.from(redeemToken, 'hex')));
         console.log("contracthashbytearray", contracthashbytearray)
 
-        const depositTokenInput = new CLKey(contracthashbytearray);
-        console.log("depositTokenInput", depositTokenInput)
+        const redeemTokenInput = new CLKey(contracthashbytearray);
+        console.log("redeemTokenInput", redeemTokenInput)
 
 
 
         let runtimeArgs = {};
         runtimeArgs = RuntimeArgs.fromMap({
             owner: ownerKey,
-            redeem_token: depositTokenInput,
+            redeem_token: redeemTokenInput,
             amount: CLValueBuilder.u256(amount),
         });
 
@@ -495,7 +495,7 @@ const ERC20 = class {
                 let hash = await this.contractClient.contractCall({
                     entryPoint: "redeem",
                     keys: keys,
-                    paymentAmount: paymentAmount ? paymentAmount : "5000000000",
+                    paymentAmount: paymentAmount ? paymentAmount : "10000000000",
                     runtimeArgs,
                     cb: (deployHash) => { },
                     ttl: ttl ? ttl : DEFAULT_TTL,

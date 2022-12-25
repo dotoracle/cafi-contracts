@@ -72,4 +72,5 @@ pub const REDEEM_TOKEN_RUNTIME_ARG_NAME : &str = "redeem_token";
 pub const DEPOSIT_TOKEN_RUNTIME_ARG_NAME : &str = "deposit_token";
 pub const SET_SUPPORTED_TOKEN_ENTRY_POINT_NAME : &str = "set_supported_token";
 pub const SET_SUPPORTED_TOKEN_DECIMALS_ENTRY_POINT_NAME : &str = "set_supported_token_decimals";
+pub const CONTRACT_NAME : &str = "contract_name"; 
 
