@@ -40,6 +40,8 @@ pub enum ErrorERC20 {
     InvalidEnabled = 114,
     MissingDecimals = 115,
     InvalidDecimals = 116,
+    MissingFee = 117,
+    InvalidFee = 118,
 
 }
 

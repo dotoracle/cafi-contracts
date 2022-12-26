@@ -227,7 +227,34 @@ impl ERC20 {
         self.read_allowance(owner, spender)
     }
 
-    /// Mints `amount` new tokens and adds them to `owner`'s balance and to the token total supply.
+    /// Set fee of contract
+    /// The dictionary values
+    pub fn set_fee(&mut self, fee: U256) -> Result<(), Error> {
+        // Check caller must be DEV account
+        let caller = helpers::get_immediate_caller_key();
+        let current_owner = helpers::get_stored_value_with_user_errors::<Key>(
+            "contract_owner",
+            Error::MissingContractOwner,
+            Error::InvalidContractOwner,
+        );
+
+        if caller != current_owner {
+            runtime::revert(Error::InvalidContractOwner);
+        }
+
+        if fee > U256::from("200") {
+            runtime::revert(Error::FeeTooHigh); 
+        }
+        set_key(FEE, fee);
+        Ok(())
+    
+    }
+
+
+     
+
+
+    /// Deposit `amount` supported_token  and mint 'amount' NOTE token to `owner`'s balance and to the token total supply.
     ///
     /// # Security
     ///
@@ -249,7 +276,7 @@ impl ERC20 {
             runtime::revert(Error::InvalidSupportedToken);
         }
 
-        /// TODO: Calculate NOTE to mint to users
+        // TODO: Calculate NOTE to mint to users
         let deposit_token_decimals_value = get_dictionary_value_from_key::<u8>(
             SUPPORTED_TOKEN_DECIMALS,
             &deposit_token_dictionary_key,
@@ -278,7 +305,7 @@ impl ERC20 {
         );
 
         let maybe_output_amount =
-            amount / U256::from(deposit_token_decimals_value) * U256::from(this_decimals);
+            amount * U256::from(10 this_decimals)/ U256::from(deposit_token_decimals_value);
 
         // Mint NOTE to owner
         let new_balance = {
@@ -342,7 +369,7 @@ impl ERC20 {
 
         let this_decimals: u8 = self.decimals();
         let maybe_output_amount =
-            amount / U256::from(this_decimals) * U256::from(redeem_token_decimals_value);
+            amount * U256::from(redeem_token_decimals_value) / U256::from(this_decimals);
 
         let current_fee = helpers::get_stored_value_with_user_errors::<U256>(
             "fee",
@@ -355,7 +382,7 @@ impl ERC20 {
             Error::InvalidFeeReceiver,
         );
 
-        let needed_fee = maybe_output_amount * current_fee/ U256::from("1000");
+        let needed_fee = maybe_output_amount * current_fee / U256::from("1000");
         let maybe_output_amount_after_fee: U256 = maybe_output_amount - needed_fee;
 
         // transfer fee to receiver
@@ -463,6 +490,8 @@ impl ERC20 {
         Ok(())
     }
 
+    /// Set supported tokens decimals that were enabled for users to deposit into contract to mint NOTE ERC20
+    /// The dictionary values
     pub fn set_supported_token_decimals(&mut self, supported_token: Key, decimals: u8) -> Result<(), Error> {
         // Check caller must be DEV account
         let caller = helpers::get_immediate_caller_key();
@@ -476,23 +505,6 @@ impl ERC20 {
             runtime::revert(Error::InvalidContractOwner);
         }
 
-        // Take valid new_addresses from runtime args
-        //let new_addresses_whitelist: Key = runtime::get_named_arg(ARG_NEW_ADDRESSES_WHITELIST);
-        // let supported_token = helpers::get_named_arg_with_user_errors::<Key>(
-        //     ARG_SUPPORTED_TOKEN,
-        //     Error::MissingSupportedToken,
-        //     Error::InvalidSupportedToken,
-        // )
-        // .unwrap_or_revert_with(Error::CannotGetWhitelistAddrressArg);
-
-        // let decimals = helpers::get_named_arg_with_user_errors::<u8>(
-        //     ARG_DECIMALS,
-        //     Error::MissingDecimals,
-        //     Error::InvalidDecimals,
-        // )
-        // .unwrap_or_revert_with(Error::CannotGetEnabled);
-
-        // Get new address if valid.
         let token_dictionary_key = helpers::make_dictionary_item_key_for_contract(supported_token);
 
         // Check if new_address already in dictionary with same enabled key
@@ -508,8 +520,6 @@ impl ERC20 {
                 runtime::revert(Error::SameDecimalsValue);
             }
         }
-        // Add new_addresses into dictionary
-
         write_dictionary_value_from_key(SUPPORTED_TOKEN_DECIMALS, &token_dictionary_key, decimals);
         Ok(())
     }
@@ -601,7 +611,7 @@ impl ERC20 {
             contract_hash,
             ENTRY_POINT_INIT,
             runtime_args! {
-                CONTRACT_NAME => "this_is_note",
+                CONTRACT_NAME => "this_is_NOTE",
             },
         );
 

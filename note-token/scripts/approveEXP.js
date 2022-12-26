@@ -40,7 +40,7 @@ ${keytonyc}
 //   .key.slice(5);
 // console.log("expContract: ", expContract)
 
-let expContract = "30070685c86e7fb410839f1ffc86de2181d4776926248e0946350615929b1ce2"
+let expContract = "95896c8167b3343095a98829a9ec58198956d5a832f0571193d935b1bb0e3065"
 let nft_contract =
 "1a22cab6274df9a09fc721b04f83f04895538339ddf37c17883c12a4bb4a55cd"
 //"a7643ef321cce2cd1401a338be87c1a6cffffe4f482b5364f35ccc1f085e9c22" // CSP contract
@@ -118,13 +118,13 @@ const test = async () => {
   //let accounthash = "a769093d50eebe829668ce0116cf24da9f17dcfe223bac30e1c33967d5888c71" // account hash
 
   let contractHash = "c799bb96c6538950fe87bdf486c1b5ead6fdd1625e6c46092630d98dffa8a4fe" // CSP CONTRACT
-  let contractPK = "8c6ab3bfa2481dd5b209cac2ba4c7f6c0fc82333963d3794f73d7196439b533e"
+  let contractPK = "a144068483a40bd0bd23a58993beea00b65507d4b716ed019b16806cc994036e" // NOTE PK
   
   let hash = await exp.approve({
     keys: KEYSTony,
     // spencer: contractHash,
     spencer: contractPK,
-    amount: '18000000000',
+    amount: '30000000',
   })
 
   console.log(`... Contract installation deployHash: ${hash}`);

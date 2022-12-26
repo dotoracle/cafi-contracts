@@ -5,7 +5,7 @@ const {
 } = require("casper-js-client-helper");
 const { DEFAULT_TTL } = require("casper-js-client-helper/dist/constants");
 
-const { CLValueBuilder, CLByteArray, CLKey, CLPublicKey, CLAccountHash, RuntimeArgs } = require("casper-js-sdk");
+const { CLValueBuilder, CLByteArray, CLKey, CLPublicKey, CLAccountHash, RuntimeArgs, CLValueParsers } = require("casper-js-sdk");
 
 const { setClient, contractSimpleGetter, createRecipientAddress } = helpers;
 const sleep = (ms) => {
@@ -38,13 +38,6 @@ const ERC20 = class {
         return wNFT;
     }
 
-    NFTMetadataKind = {
-        CEP78: 0,
-        NFT721: 1,
-        Raw: 2,
-        CustomValidated: 3,
-    };
-
     async init() {
         const { contractPackageHash, namedKeys } = await setClient(
             this.nodeAddress,
@@ -62,75 +55,9 @@ const ERC20 = class {
 
 
 
-    async identifierMode() {
-        let mode = await contractSimpleGetter(this.nodeAddress, this.contractHash, [
-            "identifier_mode",
-        ]);
-        return mode.toNumber()
-    }
-
-    async collectionName() {
-        return await this.readContractField("collection_name");
-    }
-
-    async allowMinting() {
-        return await this.readContractField("allow_minting");
-    }
-
-    async collectionSymbol() {
-        return await this.readContractField("collection_symbol");
-    }
-
-    async contractWhitelist() {
-        return await this.readContractField("contract_whitelist");
-    }
-
-    async holderMode() {
-        return await this.readContractField("holder_mode");
-    }
-
-    async installer() {
-        return await this.readContractField("installer");
-    }
-
-    async jsonSchema() {
-        return await this.readContractField("json_schema");
-    }
-
-    async metadataMutability() {
-        return await this.readContractField("metadata_mutability");
-    }
-
-    async mintingMode() {
-        return await this.readContractField("minting_mode");
-    }
-
-    async nftKind() {
-        return await this.readContractField("nft_kind");
-    }
-
-    async nftMetadataKind() {
-        return await this.readContractField("nft_metadata_kind");
-    }
-
-    async numberOfMintedTokens() {
-        return await this.readContractField("number_of_minted_tokens");
-    }
-
-    async ownershipMode() {
-        return await this.readContractField("ownership_mode");
-    }
-
-    async receiptName() {
-        return await this.readContractField("receipt_name");
-    }
 
     async totalTokenSupply() {
         return await this.readContractField("total_supply");
-    }
-
-    async whitelistMode() {
-        return await this.readContractField("whitelist_mode");
     }
 
     async readContractField(field) {
@@ -153,71 +80,6 @@ const ERC20 = class {
         }
     }
 
-    async getOwnerOf(tokenId) {
-        try {
-            const itemKey = tokenId.toString();
-            const result = await utils.contractDictionaryGetter(
-                this.nodeAddress,
-                itemKey,
-                this.namedKeys.tokenOwners
-            );
-            return Buffer.from(result.data).toString("hex");
-        } catch (e) {
-            throw e;
-        }
-    }
-
-    async burntTokens(tokenId) {
-        try {
-            const itemKey = tokenId.toString();
-            const result = await utils.contractDictionaryGetter(
-                this.nodeAddress,
-                itemKey,
-                this.namedKeys.burntTokens
-            );
-            return result ? true : false;
-        } catch (e) { }
-        return false;
-    }
-
-    async getTokenMetadata(tokenId) {
-        try {
-            const itemKey = tokenId.toString();
-            let nftMetadataKind = await this.nftMetadataKind();
-            nftMetadataKind = parseInt(nftMetadataKind.toString());
-            let result = null;
-            if (nftMetadataKind == this.NFTMetadataKind.CEP78) {
-                result = await utils.contractDictionaryGetter(
-                    this.nodeAddress,
-                    itemKey,
-                    this.namedKeys.metadataCep78
-                );
-            } else if (nftMetadataKind == this.NFTMetadataKind.CustomValidated) {
-                result = await utils.contractDictionaryGetter(
-                    this.nodeAddress,
-                    itemKey,
-                    this.namedKeys.metadataCustomValidated
-                );
-            } else if (nftMetadataKind == this.NFTMetadataKind.NFT721) {
-                result = await utils.contractDictionaryGetter(
-                    this.nodeAddress,
-                    itemKey,
-                    this.namedKeys.metadataNft721
-                );
-            } else if (nftMetadataKind == this.NFTMetadataKind.Raw) {
-                result = await utils.contractDictionaryGetter(
-                    this.nodeAddress,
-                    itemKey,
-                    this.namedKeys.metadataRaw
-                );
-            }
-
-            return result;
-        } catch (e) {
-            throw e;
-        }
-    }
-
     static getAccountItemKey(account) {
         let itemKey = "";
         if (typeof account == String) {
@@ -233,34 +95,23 @@ const ERC20 = class {
         return itemKey;
     }
 
-    async getOwnedTokens(account) {
-        try {
-            let itemKey = CEP78.getAccountItemKey(account);
-            const result = await utils.contractDictionaryGetter(
-                this.nodeAddress,
-                itemKey,
-                this.namedKeys.ownedTokens
-            );
-            return result.map((e) => e.data);
-        } catch (e) {
-            throw e;
-        }
-    }
-
     async balanceOf(account) {
         try {
-            let itemKey = ERC20.getAccountItemKey(account);
-            console.log("itemKey: ", itemKey)
-            console.log("this.namedKeys: ", this.namedKeys.balances)
+            const key = createRecipientAddress(account);
+            const keyBytes = CLValueParsers.toBytes(key).unwrap();
+            const itemKey = Buffer.from(keyBytes).toString("base64");
             const result = await utils.contractDictionaryGetter(
-                this.nodeAddress,
-                itemKey,
-                this.namedKeys.balances
+              this.nodeAddress,
+              itemKey,
+              this.namedKeys.balances
             );
-            return result;
-        } catch (e) {
+            return result.toString();
+          } catch (e) {
+            if (e.toString().includes("Failed to find base key at path")) {
+              return "0";
+            }
             throw e;
-        }
+          }
     }
 
     async approve({ keys, spencer, amount, paymentAmount, ttl }) {
@@ -269,10 +120,10 @@ const ERC20 = class {
         // spencer input should be CONTRACT HASH
 
         const contracthashbytearray = new CLByteArray(Uint8Array.from(Buffer.from(spencer, 'hex')));
-        console.log("contracthashbytearray", contracthashbytearray)
+        // console.log("contracthashbytearray", contracthashbytearray)
 
         const contractHash = new CLKey(contracthashbytearray);
-        console.log("contractHash", contractHash)
+        // console.log("contractHash", contractHash)
 
         let runtimeArgs = {};
         runtimeArgs = RuntimeArgs.fromMap({
@@ -284,23 +135,7 @@ const ERC20 = class {
         return await this.contractClient.contractCall({
             entryPoint: "approve",
             keys: keys,
-            paymentAmount: paymentAmount ? paymentAmount : "1000000000",
-            runtimeArgs,
-            cb: (deployHash) => { },
-            ttl: ttl ? ttl : DEFAULT_TTL,
-        });
-    }
-
-    async approveForAll(keys, operator, paymentAmount, ttl) {
-        let key = createRecipientAddress(operator);
-        let runtimeArgs = RuntimeArgs.fromMap({
-            operator: key,
-        });
-
-        return await this.contractClient.contractCall({
-            entryPoint: "set_approval_for_all",
-            keys: keys,
-            paymentAmount: paymentAmount ? paymentAmount : "1000000000",
+            paymentAmount: paymentAmount ? paymentAmount : "2000000000",
             runtimeArgs,
             cb: (deployHash) => { },
             ttl: ttl ? ttl : DEFAULT_TTL,
@@ -425,10 +260,10 @@ const ERC20 = class {
         //console.log("ownerKey: ", ownerKey)
 
         const contracthashbytearray = new CLByteArray(Uint8Array.from(Buffer.from(depositToken, 'hex')));
-        console.log("contracthashbytearray", contracthashbytearray)
+        // console.log("contracthashbytearray", contracthashbytearray)
 
         const depositTokenInput = new CLKey(contracthashbytearray);
-        console.log("depositTokenInput", depositTokenInput)
+        // console.log("depositTokenInput", depositTokenInput)
 
 
 
@@ -445,7 +280,7 @@ const ERC20 = class {
                 let hash = await this.contractClient.contractCall({
                     entryPoint: "deposit",
                     keys: keys,
-                    paymentAmount: paymentAmount ? paymentAmount : "5000000000",
+                    paymentAmount: paymentAmount ? paymentAmount : "10000000000",
                     runtimeArgs,
                     cb: (deployHash) => { },
                     ttl: ttl ? ttl : DEFAULT_TTL,

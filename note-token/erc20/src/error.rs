@@ -45,6 +45,7 @@ pub enum Error {
     ContractAlreadyInitialized = 219,
     MissingContractName = 220,
     InvalidContractName = 221,
+    FeeTooHigh = 222,
 
 
 }

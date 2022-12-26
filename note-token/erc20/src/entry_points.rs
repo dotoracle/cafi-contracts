@@ -156,6 +156,20 @@ pub fn redeem() -> EntryPoint {
     )
 }
 
+
+///set_supported_token_decimals entry point
+pub fn set_fee() -> EntryPoint {
+    EntryPoint::new(
+        String::from(SET_FEE_ENTRY_POINT_NAME),
+        vec![
+            Parameter::new(ARG_FEE, CLType::U256),
+        ],
+        CLType::Unit,
+        EntryPointAccess::Public,
+        EntryPointType::Contract,
+    )
+}
+
 ///set_supported_token entry point
 pub fn set_supported_token() -> EntryPoint {
     EntryPoint::new(

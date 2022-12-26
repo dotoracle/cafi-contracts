@@ -120,6 +120,23 @@ pub extern "C" fn redeem() {
         .unwrap_or_revert_with(ErrorERC20::FailCallToBurn);
 }
 
+
+#[no_mangle]
+pub extern "C" fn set_fee() {
+
+    let fee: U256 = detail::get_named_arg_with_user_errors::<U256>(
+        ARG_FEE,
+        ErrorERC20::MissingFee,
+        ErrorERC20::InvalidFee,
+    )
+    .unwrap_or_revert();
+
+    ERC20::default()
+        .set_fee(fee)
+        .unwrap_or_revert_with(ErrorERC20::FailCallToBurn);
+}
+
+
 #[no_mangle]
 pub extern "C" fn set_supported_token() {
 

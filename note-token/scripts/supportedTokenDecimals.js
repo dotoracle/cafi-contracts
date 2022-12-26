@@ -40,7 +40,7 @@ ${keytonyc}
 //   .key.slice(5);
 // console.log("expContract: ", expContract)
 
-let noteContract = "d0817bcef8f1dc16a7bd7d1d847ea4a685dc518f533bedfc5593f1626989411d"
+let noteContract = "a1ad933de2a21ee72360653340f2868a71f11bc4173aa865d5cc8bbc2ade34d6"
 let nft_contract =
 "1a22cab6274df9a09fc721b04f83f04895538339ddf37c17883c12a4bb4a55cd"
 //"a7643ef321cce2cd1401a338be87c1a6cffffe4f482b5364f35ccc1f085e9c22" // CSP contract
@@ -49,7 +49,6 @@ let nft_contract =
 //"805347b595cc24814f0d50482069a1dba24f9bfb2823c6e900386f147f25754b";
 //"52f370db3aeaa8c094e73a3aa581c85abc775cc52605e9cd9364cae0501ce645";
 //"44f244fb474431a20c4968d60550f790000d21785650c963f9ac5e02c126e1fb";
-
 
 let toAddress = "020261207299a7d59261d28a0780b92f76b5caff3ee2e3f767d7cd832e269c181767" // publicKey
 
@@ -117,20 +116,56 @@ const test = async () => {
 
   //let accounthash = "a769093d50eebe829668ce0116cf24da9f17dcfe223bac30e1c33967d5888c71" // account hash
 
-  let tokenContract = "30070685c86e7fb410839f1ffc86de2181d4776926248e0946350615929b1ce2" // USDC CONTRACT
+  // let tokenContract = "95896c8167b3343095a98829a9ec58198956d5a832f0571193d935b1bb0e3065" // USDC CONTRACT
+  // let tokenContract = "22a34d9a6b1acbf38f6fd9bdfe086f13a96ca341f8cdf3e3cd39ee0b67f56d85" // USDT CONTRACT
+  // let tokenContract = "6a17bac467b1bebe40267ea3f0b30407c21d9998dedf9d758cac5761408f5366" // BUSD CONTRACT
+
+  let tokenContract = ""
+
+  let arr = [
+    "95896c8167b3343095a98829a9ec58198956d5a832f0571193d935b1bb0e3065",
+    "22a34d9a6b1acbf38f6fd9bdfe086f13a96ca341f8cdf3e3cd39ee0b67f56d85",
+    "6a17bac467b1bebe40267ea3f0b30407c21d9998dedf9d758cac5761408f5366",
+
+  ]
+
+  let arr2 = [
+    6,
+    6,
+    18,
+  ]
+
+  for (let i =0; i< arr.length ; i++) {
+    console.log("i= ", i)
+    tokenContract = arr[i]
+    let hash = await note.setSupportedTokenDecimals({
+      keys: KEYS,
+      // spencer: contractHash,
+      supportedToken: tokenContract,
+      decimals: arr2[i],
+    })
   
-  let hash = await note.setSupportedTokenDecimals({
-    keys: KEYS,
-    // spencer: contractHash,
-    supportedToken: tokenContract,
-    decimals: 6,
-  })
+    console.log(`... Contract installation deployHash: ${hash}`);
+  
+    await getDeploy(NODE_ADDRESS, hash);
+  
+    console.log(`... Contract installed successfully.`);
+  
 
-  console.log(`... Contract installation deployHash: ${hash}`);
+  }
+  
+  // let hash = await note.setSupportedTokenDecimals({
+  //   keys: KEYS,
+  //   // spencer: contractHash,
+  //   supportedToken: tokenContract,
+  //   decimals: 18,
+  // })
 
-  await getDeploy(NODE_ADDRESS, hash);
+  // console.log(`... Contract installation deployHash: ${hash}`);
 
-  console.log(`... Contract installed successfully.`);
+  // await getDeploy(NODE_ADDRESS, hash);
+
+  // console.log(`... Contract installed successfully.`);
 };
 
 test();

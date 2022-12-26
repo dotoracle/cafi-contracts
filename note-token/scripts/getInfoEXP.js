@@ -2,17 +2,8 @@ require("dotenv").config();
 const { CLAccountHash, CLPublicKey, U64_ID, U256_ID } = require("casper-js-sdk");
 let ERC20 = require("./erc20");
 let contractHash =
-  //"f22f266ea7171e2e3c7c21266c8b7f0da2ddee8b2357ca85339af73a4018d374";
-  //"fd7427f382e6129faf66a886e77bfdcc6edfd183813aab1b0b553cbd96a9c500";
-  //"d2605b4544842bced2eeed6d3c541e220cd4942ad39cbd5e3ea14d475cdf194b"; // new 43113 wrapped token
-  //"805347b595cc24814f0d50482069a1dba24f9bfb2823c6e900386f147f25754b";
-  //"52f370db3aeaa8c094e73a3aa581c85abc775cc52605e9cd9364cae0501ce645";
-  //"68d05b72593981f73f5ce7ce5dcac9033aa0ad4e8c93b773f8b939a18c0bbc3b";
-  "bc851e618e0ed7c607b6c4876b95f67221376affe74feb7ee7c49f6f4e7c7514"; // EXP contract
+  "22a34d9a6b1acbf38f6fd9bdfe086f13a96ca341f8cdf3e3cd39ee0b67f56d85"; // EXP contract
 let contractInfo = require("./contractinfo.json");
-let nft_bridge_contract = contractInfo.namedKeys
-  .filter((e) => e.name == "dotoracle_nft_bridge_contract")[0]
-  .key.slice(5);
 const { NODE_ADDRESS, EVENT_STREAM_ADDRESS, CHAIN_NAME, WASM_PATH } =
   process.env;
 async function main() {

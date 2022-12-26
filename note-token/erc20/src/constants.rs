@@ -63,6 +63,7 @@ pub const SUPPORTED_TOKEN : &str = "supported_token";
 pub const ARG_ENABLED : &str = "enabled";
 pub const ENABLED : &str = "enabled";
 pub const ARG_DECIMALS : &str = "decimals";
+pub const ARG_FEE : &str = "fee";
 pub const FEE : &str = "fee";
 pub const FEE_RECEIVER : &str = "fee_receiver";
 pub const CONTRACT_OWNER : &str = "contract_owner";
@@ -73,4 +74,4 @@ pub const DEPOSIT_TOKEN_RUNTIME_ARG_NAME : &str = "deposit_token";
 pub const SET_SUPPORTED_TOKEN_ENTRY_POINT_NAME : &str = "set_supported_token";
 pub const SET_SUPPORTED_TOKEN_DECIMALS_ENTRY_POINT_NAME : &str = "set_supported_token_decimals";
 pub const CONTRACT_NAME : &str = "contract_name"; 
-
+pub const SET_FEE_ENTRY_POINT_NAME : &str = "set_fee";
