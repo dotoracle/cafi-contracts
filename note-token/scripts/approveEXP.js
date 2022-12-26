@@ -118,7 +118,7 @@ const test = async () => {
   //let accounthash = "a769093d50eebe829668ce0116cf24da9f17dcfe223bac30e1c33967d5888c71" // account hash
 
   let contractHash = "c799bb96c6538950fe87bdf486c1b5ead6fdd1625e6c46092630d98dffa8a4fe" // CSP CONTRACT
-  let contractPK = "a144068483a40bd0bd23a58993beea00b65507d4b716ed019b16806cc994036e" // NOTE PK
+  let contractPK = "45b1d7c55f76d487ac21153472338bae92447980cb6c9fa687907169ab88d296" // NOTE PK
   
   let hash = await exp.approve({
     keys: KEYSTony,

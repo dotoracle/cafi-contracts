@@ -21,7 +21,7 @@ ${key}
 -----END PRIVATE KEY-----
 `; // abb key
 
-let noteContract = "d0817bcef8f1dc16a7bd7d1d847ea4a685dc518f533bedfc5593f1626989411d"
+let noteContract = "8964cd79e865d5f65878e2c73df979331f18cf0847c296010ed7602d2bd3933e"
 console.log("noteContract: ", noteContract)
 
 let tony = "020261207299a7d59261d28a0780b92f76b5caff3ee2e3f767d7cd832e269c181767" // publicKey
@@ -77,7 +77,9 @@ const test = async () => {
   // await getDeploy(NODE_ADDRESS, hashApprove);
 
   let accounthash = "a769093d50eebe829668ce0116cf24da9f17dcfe223bac30e1c33967d5888c71" // account hash Tony
-  let USDC = "30070685c86e7fb410839f1ffc86de2181d4776926248e0946350615929b1ce2"
+  // let USDT = "22a34d9a6b1acbf38f6fd9bdfe086f13a96ca341f8cdf3e3cd39ee0b67f56d85"
+  let USDC = "95896c8167b3343095a98829a9ec58198956d5a832f0571193d935b1bb0e3065"
+  // let BUSD = "6a17bac467b1bebe40267ea3f0b30407c21d9998dedf9d758cac5761408f5366"
 
   // let accounthash = "55884917f4107a59e8c06557baee7fdada631af6d1c105984d196a84562854eb" // ABB
 
@@ -85,7 +87,7 @@ const test = async () => {
     keys: KEYSTony,
     owner: accounthash,
     redeemToken: USDC,
-    amount: '18000000',
+    amount: '2000000000',
   })
 
   console.log(`... Contract installation deployHash: ${hash}`);

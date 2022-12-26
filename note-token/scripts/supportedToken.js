@@ -40,7 +40,7 @@ ${keytonyc}
 //   .key.slice(5);
 // console.log("expContract: ", expContract)
 
-let noteContract = "a1ad933de2a21ee72360653340f2868a71f11bc4173aa865d5cc8bbc2ade34d6"
+let noteContract = "8964cd79e865d5f65878e2c73df979331f18cf0847c296010ed7602d2bd3933e"
 let nft_contract =
 "1a22cab6274df9a09fc721b04f83f04895538339ddf37c17883c12a4bb4a55cd"
 //"a7643ef321cce2cd1401a338be87c1a6cffffe4f482b5364f35ccc1f085e9c22" // CSP contract

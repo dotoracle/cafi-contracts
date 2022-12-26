@@ -305,7 +305,7 @@ impl ERC20 {
         );
 
         let maybe_output_amount =
-            amount * U256::from(10 this_decimals)/ U256::from(deposit_token_decimals_value);
+            amount * U256::pow(U256::from(10),U256::from(this_decimals))/ U256::pow(U256::from(10),U256::from(deposit_token_decimals_value));
 
         // Mint NOTE to owner
         let new_balance = {
@@ -369,7 +369,7 @@ impl ERC20 {
 
         let this_decimals: u8 = self.decimals();
         let maybe_output_amount =
-            amount * U256::from(redeem_token_decimals_value) / U256::from(this_decimals);
+            amount * U256::pow(U256::from(10),U256::from(redeem_token_decimals_value)) / U256::pow(U256::from(10),U256::from(this_decimals));
 
         let current_fee = helpers::get_stored_value_with_user_errors::<U256>(
             "fee",
@@ -391,7 +391,7 @@ impl ERC20 {
         let redeem_token_contract_hash: ContractHash =
             ContractHash::new(redeem_token_contract_hash_addr);
         let _: () = runtime::call_contract(
-            redeem_token_contract_hash, // wcspr contract
+            redeem_token_contract_hash, // USDC contract
             TRANSFER_ENTRY_POINT_NAME,
             runtime_args! {
                 "owner" => this_self_key,

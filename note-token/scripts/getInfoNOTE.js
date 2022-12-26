@@ -2,7 +2,7 @@ require("dotenv").config();
 const { CLAccountHash, CLPublicKey, U64_ID, U256_ID } = require("casper-js-sdk");
 let ERC20 = require("./erc20");
 let contractHashNote =
-  "a1ad933de2a21ee72360653340f2868a71f11bc4173aa865d5cc8bbc2ade34d6"; // Note contract
+  "8964cd79e865d5f65878e2c73df979331f18cf0847c296010ed7602d2bd3933e"; // Note contract
 
 let contractHashUSDC =
   "95896c8167b3343095a98829a9ec58198956d5a832f0571193d935b1bb0e3065"; // USDC contract

@@ -21,7 +21,7 @@ ${key}
 -----END PRIVATE KEY-----
 `; // abb key
 
-let noteContract = "a1ad933de2a21ee72360653340f2868a71f11bc4173aa865d5cc8bbc2ade34d6"
+let noteContract = "8964cd79e865d5f65878e2c73df979331f18cf0847c296010ed7602d2bd3933e"
 console.log("noteContract: ", noteContract)
 
 let tony = "020261207299a7d59261d28a0780b92f76b5caff3ee2e3f767d7cd832e269c181767" // publicKey
