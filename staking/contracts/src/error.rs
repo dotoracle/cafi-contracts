@@ -47,6 +47,10 @@ pub enum Error {
     InvalidTotalAllocPoint = 121,
     MissingRewardPerSecond = 122,
     InvalidRewardPerSecond = 123,
+    CanNotGetPoolList = 124,
+    MissingNumberOfPool = 125,
+    InvalidNumberOfPool = 126,
+    CanNotGetUserInfo = 127,
 
     
 }

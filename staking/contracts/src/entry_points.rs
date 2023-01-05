@@ -73,6 +73,17 @@ fn un_stake() -> EntryPoint {
     )
 }
 
+fn get_pending_rewards() -> EntryPoint {
+    EntryPoint::new(
+        String::from(GET_PENDING_REWARD),
+        vec![
+            
+        ],
+        CLType::Unit,
+        EntryPointAccess::Public,
+        EntryPointType::Contract,
+    )
+}
 
 
 fn init() -> EntryPoint {
@@ -101,5 +112,6 @@ pub(crate) fn default() -> EntryPoints {
     entry_points.add_entry_point(add_new_pool());
     entry_points.add_entry_point(stake());
     entry_points.add_entry_point(un_stake());
+    entry_points.add_entry_point(get_pending_rewards());
     entry_points
 }
