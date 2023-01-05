@@ -19,17 +19,13 @@ use serde::{Deserialize, Serialize};
 use crate::constants::*;
 use crate::error::Error;
 use crate::helpers::*;
-use address::Address;
 
 use alloc::{
     string::{String, ToString},
     vec::*,
 };
 use casper_contract::{
-    contract_api::{
-        runtime, storage,
-        system::{self},
-    },
+    contract_api::{runtime, storage},
     unwrap_or_revert::UnwrapOrRevert,
 };
 use casper_types::{
@@ -38,9 +34,10 @@ use casper_types::{
 };
 use events::StakingEvent;
 use helpers::{get_immediate_caller_key, get_self_key, get_user_info_key};
-const FEE_DIVISOR: u64 = 10000;
-const WEIGHT_MULTIPLIER: u64 = 1000000; // 10^6
-const ONE_YEAR: u64 = 365 * 86400;
+
+// pub const u256_10_18 : U256 = U256::pow(U256::from("10"), U256::from("18"));
+pub const u256_10_18 : u64 = u64::pow(10,18);
+
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct TokenStake {
@@ -150,8 +147,6 @@ fn call() {
     );
     runtime::put_key(contract_hash_key_name.as_str(), Key::from(contract_hash));
 
-    // set_key(PUNK_MARKETPLACE_KEY_NAME, Key::from(contract_hash));
-
     runtime::call_contract::<()>(
         contract_hash,
         INIT_ENTRY_POINT_NAME,
@@ -175,20 +170,20 @@ fn get_user_info(pool_id: u64, user: Key) -> UserInfo {
     if get_dictionary_value_from_key::<String>(USER_INFO, &user_info_key).is_some() {
         let user_info_str =
             get_dictionary_value_from_key::<String>(USER_INFO, &user_info_key).unwrap_or_revert();
+        user_info = casper_serde_json_wasm::from_str::<UserInfo>(&user_info_str).unwrap();
 
-        if casper_serde_json_wasm::from_str::<UserInfo>(&user_info_str).is_err() {
-            runtime::revert(Error::CanNotGetUserInfo);
-        } else {
-            let user_info_result = casper_serde_json_wasm::from_str::<UserInfo>(&user_info_str).unwrap();
-            user_info = UserInfo {
-                total_stake_amount: user_info_result.total_stake_amount,
-                reward_debt: user_info_result.reward_debt,
-                pending_rewards: user_info_result.pending_rewards,
-                locked_until: user_info_result.locked_until,
-                // stakes: user_info_result.stakes,
-    
-            }
-        };
+        // if casper_serde_json_wasm::from_str::<UserInfo>(&user_info_str).is_err() {
+        //     runtime::revert(Error::CanNotGetUserInfo);
+        // } else {
+        //     let user_info_result = casper_serde_json_wasm::from_str::<UserInfo>(&user_info_str).unwrap();
+        //     user_info = UserInfo {
+        //         total_stake_amount: user_info_result.total_stake_amount,
+        //         reward_debt: user_info_result.reward_debt,
+        //         pending_rewards: user_info_result.pending_rewards,
+        //         locked_until: user_info_result.locked_until,
+        //         // stakes: user_info_result.stakes,
+        //     }
+        // };
     } else {
         user_info = UserInfo {
             total_stake_amount: U256::from("0"),
@@ -432,30 +427,21 @@ pub extern "C" fn add_new_pool() -> Result<(), Error> {
 #[no_mangle]
 pub extern "C" fn stake() -> Result<(), Error> {
     // This is equal to pool_id
-    let pool_id: u64 = helpers::get_named_arg_with_user_errors(
-        ARG_POOL_ID,
-        Error::MissingPoolId,
-        Error::InvalidPoolId,
-    )
-    .unwrap_or_revert();
-    let amount: U256 = helpers::get_named_arg_with_user_errors(
-        ARG_AMOUNT,
-        Error::MissingAmount,
-        Error::InvalidAmount,
-    )
-    .unwrap_or_revert();
+    let pool_id: u64 = runtime::get_named_arg(ARG_POOL_ID);
+    let amount: U256 = runtime::get_named_arg(ARG_AMOUNT);
     if amount <= U256::from("0") {
         runtime::revert(Error::InvalidAmount);
     }
-    let stake_duration: U256 = helpers::get_named_arg_with_user_errors(
-        ARG_STAKE_DURATION,
-        Error::MissingStakeDuration,
-        Error::InvalidStakeDuration,
-    )
-    .unwrap_or_revert();
-    let pool_id_usize: usize = pool_id as usize;
+    let stake_duration: U256 = runtime::get_named_arg(ARG_STAKE_DURATION);
+    let rewards_token: Key = helpers::get_stored_value_with_user_errors::<Key>(
+        REWARD_TOKEN,
+        Error::MissingRewardToken,
+        Error::InvalidRewardToken,
+    );
+
+    // let pool_id_usize: usize = pool_id as usize;
     // update pool with pool_id
-    update_pool(pool_id_usize);
+    update_pool(rewards_token, pool_id.clone());
 
     let caller = get_immediate_caller_key();
 
@@ -463,9 +449,9 @@ pub extern "C" fn stake() -> Result<(), Error> {
 
     let pool_info_str: String =
         helpers::get_dictionary_value_from_key(POOL_INFO, &pool_id.to_string()).unwrap();
-    if casper_serde_json_wasm::from_str::<PoolInfo>(&pool_info_str).is_err() {
-        runtime::revert(Error::CanNotGetPoolList)
-    }
+    // if casper_serde_json_wasm::from_str::<PoolInfo>(&pool_info_str).is_err() {
+    //     runtime::revert(Error::CanNotGetPoolList)
+    // }
 
     let mut pool_info = casper_serde_json_wasm::from_str::<PoolInfo>(&pool_info_str).unwrap();
 
@@ -482,11 +468,12 @@ pub extern "C" fn stake() -> Result<(), Error> {
         // pay pending rewards
         let pending_rewards: U256 = (user_info_of_this_pool.total_stake_amount.clone()
             * pool_info.acc_reward_per_share.clone()
-            / U256::pow(U256::from("10"), U256::from("18")))
+            / U256::from(u256_10_18))
             - user_info_of_this_pool.reward_debt;
         let total_pending: U256 = user_info_of_this_pool.pending_rewards.clone() + pending_rewards;
 
         user_info_of_this_pool = pay_rewards(
+            rewards_token,
             this_key,
             caller,
             pending_rewards,
@@ -497,18 +484,18 @@ pub extern "C" fn stake() -> Result<(), Error> {
 
     let lp_token_hash = pool_info.lp_token;
     // transfer lp_token to the pool
-    transfer_from_erc20_token(lp_token_hash, caller, this_key, amount);
+    transfer_from_erc20_token(lp_token_hash, caller, this_key, amount.clone());
 
     // Recalculate  user_info and pool_info
     user_info_of_this_pool.total_stake_amount =
-        user_info_of_this_pool.total_stake_amount.clone() + amount;
-    pool_info.lp_supply = pool_info.lp_supply.clone() + amount;
+        user_info_of_this_pool.total_stake_amount.clone() + amount.clone();
+    pool_info.lp_supply = pool_info.lp_supply.clone() + amount.clone();
 
     // Todo: rewards debt
 
     user_info_of_this_pool.reward_debt = user_info_of_this_pool.total_stake_amount.clone()
         * pool_info.acc_reward_per_share.clone()
-        / U256::pow(U256::from("10"), U256::from("18"));
+        / U256::from(u256_10_18);
 
     // save
     write_dictionary_user_info(pool_id, caller, user_info_of_this_pool);
@@ -530,183 +517,183 @@ pub extern "C" fn stake() -> Result<(), Error> {
 }
 
 // Stake LP token
-#[no_mangle]
-pub extern "C" fn stake2() -> Result<(), Error> {
-    // This is equal to pool_id
-    let pool_id: u64 = helpers::get_named_arg_with_user_errors(
-        ARG_POOL_ID,
-        Error::MissingPoolId,
-        Error::InvalidPoolId,
-    )
-    .unwrap_or_revert();
-    let amount: U256 = helpers::get_named_arg_with_user_errors(
-        ARG_AMOUNT,
-        Error::MissingAmount,
-        Error::InvalidAmount,
-    )
-    .unwrap_or_revert();
-    if amount <= U256::from("0") {
-        runtime::revert(Error::InvalidAmount);
-    }
-    let stake_duration: U256 = helpers::get_named_arg_with_user_errors(
-        ARG_STAKE_DURATION,
-        Error::MissingStakeDuration,
-        Error::InvalidStakeDuration,
-    )
-    .unwrap_or_revert();
-    let pool_id_usize: usize = pool_id as usize;
-    // update pool with pool_id
-    update_pool(pool_id_usize);
+// #[no_mangle]
+// pub extern "C" fn stake2() -> Result<(), Error> {
+//     // This is equal to pool_id
+//     let pool_id: u64 = helpers::get_named_arg_with_user_errors(
+//         ARG_POOL_ID,
+//         Error::MissingPoolId,
+//         Error::InvalidPoolId,
+//     )
+//     .unwrap_or_revert();
+//     let amount: U256 = helpers::get_named_arg_with_user_errors(
+//         ARG_AMOUNT,
+//         Error::MissingAmount,
+//         Error::InvalidAmount,
+//     )
+//     .unwrap_or_revert();
+//     if amount <= U256::from("0") {
+//         runtime::revert(Error::InvalidAmount);
+//     }
+//     let stake_duration: U256 = helpers::get_named_arg_with_user_errors(
+//         ARG_STAKE_DURATION,
+//         Error::MissingStakeDuration,
+//         Error::InvalidStakeDuration,
+//     )
+//     .unwrap_or_revert();
+//     // let pool_id_usize: usize = pool_id as usize;
+//     // update pool with pool_id
+//     update_pool(pool_id.clone());
 
-    let caller = get_immediate_caller_key();
+//     let caller = get_immediate_caller_key();
 
-    // get pool_info
-    let current_list_str: String = helpers::get_stored_value_with_user_errors(
-        POOL_LIST,
-        Error::MissingPoolList,
-        Error::InvalidPoolList,
-    );
-    if casper_serde_json_wasm::from_str::<PoolList>(&current_list_str).is_err() {
-        runtime::revert(Error::CanNotGetPoolList)
-    }
+//     // get pool_info
+//     let current_list_str: String = helpers::get_stored_value_with_user_errors(
+//         POOL_LIST,
+//         Error::MissingPoolList,
+//         Error::InvalidPoolList,
+//     );
+//     if casper_serde_json_wasm::from_str::<PoolList>(&current_list_str).is_err() {
+//         runtime::revert(Error::CanNotGetPoolList)
+//     }
 
-    let current_list = casper_serde_json_wasm::from_str::<PoolList>(&current_list_str);
+//     // let current_list = casper_serde_json_wasm::from_str::<PoolList>(&current_list_str);
 
-    let mut list: Vec<PoolInfo> = current_list.unwrap().all_pool;
+//     // let mut list: Vec<PoolInfo> = current_list.unwrap().all_pool;
 
-    let pool_info = &mut list[pool_id_usize];
+//     // let pool_info = &mut list[pool_id_usize];
 
-    // let pool_info = get_pool_info(pool_id_usize);
+//     // let pool_info = get_pool_info(pool_id_usize);
 
-    // Check if stake_duration is
-    if stake_duration < pool_info.min_stake_duration {
-        runtime::revert(Error::InvalidStakeDuration);
-    }
-    // Todo: write to USER_INFO (userInfo)
+//     // Check if stake_duration is
+//     if stake_duration < pool_info.min_stake_duration {
+//         runtime::revert(Error::InvalidStakeDuration);
+//     }
+//     // Todo: write to USER_INFO (userInfo)
 
-    let this_key: Key = get_self_key();
+//     let this_key: Key = get_self_key();
 
-    let mut user_info_of_this_pool = get_user_info(pool_id, caller);
-    if user_info_of_this_pool.total_stake_amount > U256::from("0") {
-        // pay pending rewards
-        let pending_rewards: U256 = (user_info_of_this_pool.total_stake_amount.clone()
-            * pool_info.acc_reward_per_share.clone()
-            / U256::pow(U256::from("10"), U256::from("18")))
-            - user_info_of_this_pool.reward_debt.clone();
-        let total_pending: U256 = user_info_of_this_pool.pending_rewards.clone() + pending_rewards;
+//     let mut user_info_of_this_pool = get_user_info(pool_id, caller);
+//     if user_info_of_this_pool.total_stake_amount > U256::from("0") {
+//         // pay pending rewards
+//         let pending_rewards: U256 = (user_info_of_this_pool.total_stake_amount.clone()
+//             * pool_info.acc_reward_per_share.clone()
+//             / u256_10_18)
+//             - user_info_of_this_pool.reward_debt.clone();
+//         let total_pending: U256 = user_info_of_this_pool.pending_rewards.clone() + pending_rewards;
 
-        pay_rewards(
-            this_key,
-            caller,
-            pending_rewards,
-            user_info_of_this_pool.clone(),
-        );
-    }
-    // Call transfer_from function to transfer deposit to this contract
+//         pay_rewards(
+//             this_key,
+//             caller,
+//             pending_rewards,
+//             user_info_of_this_pool.clone(),
+//         );
+//     }
+//     // Call transfer_from function to transfer deposit to this contract
 
-    let lp_token_hash = pool_info.lp_token;
-    // transfer lp_token to the pool
-    transfer_from_erc20_token(lp_token_hash, caller, this_key, U256::from(amount));
+//     let lp_token_hash = pool_info.lp_token;
+//     // transfer lp_token to the pool
+//     transfer_from_erc20_token(lp_token_hash, caller, this_key, U256::from(amount));
 
-    // Recalculate  user_info and pool_info
-    user_info_of_this_pool.total_stake_amount =
-        user_info_of_this_pool.total_stake_amount.clone() + amount;
-    pool_info.lp_supply = pool_info.lp_supply.clone() + amount;
+//     // Recalculate  user_info and pool_info
+//     user_info_of_this_pool.total_stake_amount =
+//         user_info_of_this_pool.total_stake_amount.clone() + amount;
+//     pool_info.lp_supply = pool_info.lp_supply.clone() + amount;
 
-    // Todo: rewards debt
+//     // Todo: rewards debt
 
-    user_info_of_this_pool.reward_debt = user_info_of_this_pool.total_stake_amount
-        * pool_info.acc_reward_per_share
-        / U256::pow(U256::from("10"), U256::from("18"));
+//     user_info_of_this_pool.reward_debt = user_info_of_this_pool.total_stake_amount
+//         * pool_info.acc_reward_per_share
+//         / u256_10_18;
 
-    // save
-    write_dictionary_user_info(pool_id, caller, user_info_of_this_pool);
-    set_key(
-        POOL_LIST,
-        casper_serde_json_wasm::to_string_pretty(&list).unwrap(),
-    );
+//     // save
+//     write_dictionary_user_info(pool_id, caller, user_info_of_this_pool);
+//     set_key(
+//         POOL_LIST,
+//         casper_serde_json_wasm::to_string_pretty(&list).unwrap(),
+//     );
 
-    // Emit event
-    events::emit(&StakingEvent::UserStake {
-        user: caller.clone(),
-        lp_token: lp_token_hash.clone(),
-        amount: amount.clone(),
-        stake_duration: stake_duration.clone(),
-    });
+//     // Emit event
+//     events::emit(&StakingEvent::UserStake {
+//         user: caller.clone(),
+//         lp_token: lp_token_hash.clone(),
+//         amount: amount.clone(),
+//         stake_duration: stake_duration.clone(),
+//     });
 
-    Ok(())
-}
+//     Ok(())
+// }
 
-#[no_mangle]
-pub extern "C" fn un_stake2() -> Result<(), Error> {
-    // This is equal to pool_id
-    let pool_id: u64 = helpers::get_named_arg_with_user_errors(
-        ARG_POOL_ID,
-        Error::MissingPoolId,
-        Error::InvalidPoolId,
-    )
-    .unwrap_or_revert();
-    let amount: U256 = helpers::get_named_arg_with_user_errors(
-        ARG_AMOUNT,
-        Error::MissingAmount,
-        Error::InvalidAmount,
-    )
-    .unwrap_or_revert();
-    if amount <= U256::from("0") {
-        runtime::revert(Error::InvalidAmount);
-    }
-    let pool_id_usize: usize = pool_id as usize;
-    // update pool with pool_id
-    update_pool(pool_id_usize);
+// #[no_mangle]
+// pub extern "C" fn un_stake2() -> Result<(), Error> {
+//     // This is equal to pool_id
+//     let pool_id: u64 = helpers::get_named_arg_with_user_errors(
+//         ARG_POOL_ID,
+//         Error::MissingPoolId,
+//         Error::InvalidPoolId,
+//     )
+//     .unwrap_or_revert();
+//     let amount: U256 = helpers::get_named_arg_with_user_errors(
+//         ARG_AMOUNT,
+//         Error::MissingAmount,
+//         Error::InvalidAmount,
+//     )
+//     .unwrap_or_revert();
+//     if amount <= U256::from("0") {
+//         runtime::revert(Error::InvalidAmount);
+//     }
+//     let pool_id_usize: usize = pool_id as usize;
+//     // update pool with pool_id
+//     update_pool(pool_id_usize);
 
-    let caller = get_immediate_caller_key();
+//     let caller = get_immediate_caller_key();
 
-    // get pool_info
-    let current_list_str: String = helpers::get_stored_value_with_user_errors(
-        POOL_LIST,
-        Error::MissingPoolList,
-        Error::InvalidPoolList,
-    );
+//     // get pool_info
+//     let current_list_str: String = helpers::get_stored_value_with_user_errors(
+//         POOL_LIST,
+//         Error::MissingPoolList,
+//         Error::InvalidPoolList,
+//     );
 
-    let current_list = casper_serde_json_wasm::from_str::<PoolList>(&current_list_str).unwrap();
+//     let current_list = casper_serde_json_wasm::from_str::<PoolList>(&current_list_str).unwrap();
 
-    let mut list: Vec<PoolInfo> = current_list.all_pool;
+//     let mut list: Vec<PoolInfo> = current_list.all_pool;
 
-    // this is pool_info
-    let pool_info = &mut list[pool_id_usize];
+//     // this is pool_info
+//     let pool_info = &mut list[pool_id_usize];
 
-    let this_key: Key = get_self_key();
+//     let this_key: Key = get_self_key();
 
-    // this is user_info
-    let mut user_info_of_this_pool = get_user_info(pool_id, caller);
+//     // this is user_info
+//     let mut user_info_of_this_pool = get_user_info(pool_id, caller);
 
-    if user_info_of_this_pool.total_stake_amount < amount {
-        runtime::revert(Error::InvalidAmount);
-    }
+//     if user_info_of_this_pool.total_stake_amount < amount {
+//         runtime::revert(Error::InvalidAmount);
+//     }
 
-    let pending: U256 = user_info_of_this_pool.total_stake_amount * pool_info.acc_reward_per_share
-        / U256::pow(U256::from("10"), U256::from("18"))
-        - user_info_of_this_pool.reward_debt;
-    let total_pending: U256 = user_info_of_this_pool.pending_rewards + pending;
-    user_info_of_this_pool.pending_rewards = U256::from("0");
-    user_info_of_this_pool = pay_rewards(this_key, caller, total_pending, user_info_of_this_pool);
-    user_info_of_this_pool.total_stake_amount =
-        user_info_of_this_pool.total_stake_amount.clone() - amount.clone();
-    pool_info.lp_supply = pool_info.lp_supply.clone() - amount.clone();
-    transfer_erc20_token(pool_info.lp_token.clone(),  caller, amount);
-    user_info_of_this_pool.reward_debt = user_info_of_this_pool.total_stake_amount
-        * pool_info.acc_reward_per_share
-        / U256::pow(U256::from("10"), U256::from("18"));
+//     let pending: U256 = user_info_of_this_pool.total_stake_amount * pool_info.acc_reward_per_share
+//         / u256_10_18
+//         - user_info_of_this_pool.reward_debt;
+//     let total_pending: U256 = user_info_of_this_pool.pending_rewards + pending;
+//     user_info_of_this_pool.pending_rewards = U256::from("0");
+//     user_info_of_this_pool = pay_rewards(this_key, caller, total_pending, user_info_of_this_pool);
+//     user_info_of_this_pool.total_stake_amount =
+//         user_info_of_this_pool.total_stake_amount.clone() - amount.clone();
+//     pool_info.lp_supply = pool_info.lp_supply.clone() - amount.clone();
+//     transfer_erc20_token(pool_info.lp_token.clone(), caller, amount);
+//     user_info_of_this_pool.reward_debt = user_info_of_this_pool.total_stake_amount
+//         * pool_info.acc_reward_per_share
+//         / u256_10_18;
 
-    // save
-    write_dictionary_user_info(pool_id, caller, user_info_of_this_pool);
-    set_key(
-        POOL_LIST,
-        casper_serde_json_wasm::to_string_pretty(&list).unwrap(),
-    );
+//     // save
+//     write_dictionary_user_info(pool_id, caller, user_info_of_this_pool);
+//     set_key(
+//         POOL_LIST,
+//         casper_serde_json_wasm::to_string_pretty(&list).unwrap(),
+//     );
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 #[no_mangle]
 pub extern "C" fn un_stake() -> Result<(), Error> {
@@ -726,9 +713,16 @@ pub extern "C" fn un_stake() -> Result<(), Error> {
     if amount <= U256::from("0") {
         runtime::revert(Error::InvalidAmount);
     }
-    let pool_id_usize: usize = pool_id.clone() as usize;
+
+    let rewards_token: Key = helpers::get_stored_value_with_user_errors::<Key>(
+        REWARD_TOKEN,
+        Error::MissingRewardToken,
+        Error::InvalidRewardToken,
+    );
+
+    // let pool_id_usize: usize = pool_id.clone() as usize;
     // update pool with pool_id
-    update_pool(pool_id_usize);
+    update_pool(rewards_token, pool_id.clone());
 
     let caller = get_immediate_caller_key();
 
@@ -752,18 +746,18 @@ pub extern "C" fn un_stake() -> Result<(), Error> {
     }
 
     let pending: U256 = user_info_of_this_pool.total_stake_amount * pool_info.acc_reward_per_share
-        / U256::pow(U256::from("10"), U256::from("18"))
+        / U256::from(u256_10_18)
         - user_info_of_this_pool.reward_debt;
     let total_pending: U256 = user_info_of_this_pool.pending_rewards + pending;
     user_info_of_this_pool.pending_rewards = U256::from("0");
-    user_info_of_this_pool = pay_rewards(this_key, caller, total_pending, user_info_of_this_pool);
+    user_info_of_this_pool = pay_rewards(rewards_token, this_key, caller, total_pending, user_info_of_this_pool);
     user_info_of_this_pool.total_stake_amount =
         user_info_of_this_pool.total_stake_amount.clone() - amount.clone();
     pool_info.lp_supply = pool_info.lp_supply.clone() - amount.clone();
     transfer_erc20_token(pool_info.lp_token.clone(), caller, amount);
     user_info_of_this_pool.reward_debt = user_info_of_this_pool.total_stake_amount
         * pool_info.acc_reward_per_share
-        / U256::pow(U256::from("10"), U256::from("18"));
+        / U256::from(u256_10_18);
 
     // save
     write_dictionary_user_info(pool_id, caller, user_info_of_this_pool);
@@ -777,21 +771,23 @@ pub extern "C" fn un_stake() -> Result<(), Error> {
 }
 
 fn pay_rewards(
+    rewards_token: Key,
     this_contract: Key,
     user: Key,
     rewards_amount: U256,
     mut user_info_of_this_pool: UserInfo,
 ) -> UserInfo {
     // transfer rewards
-    let rewards_token: Key = helpers::get_stored_value_with_user_errors::<Key>(
-        REWARD_TOKEN,
-        Error::MissingRewardToken,
-        Error::InvalidRewardToken,
-    );
+    // let rewards_token: Key = helpers::get_stored_value_with_user_errors::<Key>(
+    //     REWARD_TOKEN,
+    //     Error::MissingRewardToken,
+    //     Error::InvalidRewardToken,
+    // );
 
-    let reward_token_balance_of_contract: U256 = get_balance_erc20_token(rewards_token, this_contract);
+    let reward_token_balance_of_contract: U256 =
+        get_balance_erc20_token(rewards_token, this_contract);
     if reward_token_balance_of_contract < rewards_amount {
-        transfer_erc20_token(rewards_token,  user, reward_token_balance_of_contract);
+        transfer_erc20_token(rewards_token, user, reward_token_balance_of_contract);
         user_info_of_this_pool.pending_rewards =
             user_info_of_this_pool.pending_rewards - reward_token_balance_of_contract;
     } else {
@@ -805,14 +801,14 @@ fn get_multiplier(from: U256, to: U256) -> U256 {
     let multiplier = to - from;
     multiplier
 }
-fn update_pool(pool_id: usize) {
+fn update_pool(rewards_token: Key, pool_id: u64) {
     // get Pool_Info of this pool
 
     let pool_info_str: String =
         helpers::get_dictionary_value_from_key(POOL_INFO, &pool_id.to_string()).unwrap();
-    if casper_serde_json_wasm::from_str::<PoolInfo>(&pool_info_str).is_err() {
-        runtime::revert(Error::CanNotGetPoolList)
-    }
+    // if casper_serde_json_wasm::from_str::<PoolInfo>(&pool_info_str).is_err() {
+    //     runtime::revert(Error::CanNotGetPoolList)
+    // }
 
     let mut this_pool = casper_serde_json_wasm::from_str::<PoolInfo>(&pool_info_str).unwrap();
 
@@ -824,10 +820,7 @@ fn update_pool(pool_id: usize) {
     }
 
     // Todo: update pool
-    let multiplier: U256 = get_multiplier(
-        this_pool.last_reward_second,
-        current_block_timestamps,
-    );
+    let multiplier: U256 = get_multiplier(this_pool.last_reward_second, current_block_timestamps);
     let total_alloc_point: U256 = helpers::get_stored_value_with_user_errors::<U256>(
         TOTAL_ALLOC_POINT,
         Error::MissingTotalAllocPoint,
@@ -839,17 +832,35 @@ fn update_pool(pool_id: usize) {
         Error::InvalidRewardPerSecond,
     );
 
-    if total_alloc_point > U256::zero() && this_pool.lp_supply != U256::zero() {
+    if total_alloc_point > U256::from("0") && this_pool.lp_supply != U256::from("0") {
         let reward: U256 =
             multiplier * reward_per_second * this_pool.alloc_point / total_alloc_point;
         // Todo: transfer reward to this contract
 
         let contract_key: Key = get_self_key();
 
-        mint_reward_to_contract(contract_key, reward);
+        // mint reward
+
+        // mint_reward_to_contract(contract_key, reward);
+
+        // let rewards_token: Key = helpers::get_stored_value_with_user_errors::<Key>(
+        //     REWARD_TOKEN,
+        //     Error::MissingRewardToken,
+        //     Error::InvalidRewardToken,
+        // );
+        let contract_hash_addr: HashAddr = rewards_token.into_hash().unwrap_or_revert();
+        let contract_hash: ContractHash = ContractHash::new(contract_hash_addr);
+        let _: () = runtime::call_contract(
+            contract_hash,
+            MINT_ENTRY_POINT_NAME,
+            runtime_args! {
+                "owner" => contract_key,
+                "amount" => reward,
+            },
+        );
         //update
-        this_pool.acc_reward_per_share = this_pool.acc_reward_per_share
-            + (reward * U256::pow(U256::from("10"), U256::from("18")) / this_pool.lp_supply);
+        this_pool.acc_reward_per_share = this_pool.acc_reward_per_share.clone()
+            + (reward * U256::from(u256_10_18) / this_pool.lp_supply);
         this_pool.last_reward_second = current_block_timestamps;
 
         // save pool_info
@@ -857,6 +868,7 @@ fn update_pool(pool_id: usize) {
         write_dictionary_value_from_key(
             POOL_INFO,
             &pool_id.to_string(),
+            // this_pool,
             casper_serde_json_wasm::to_string_pretty(&this_pool).unwrap(),
         );
     }
@@ -917,10 +929,10 @@ pub extern "C" fn get_pending_rewards2() -> U256 {
         let rewards: U256 =
             (multiplier * reward_per_second * pool_info.alloc_point) / total_alloc_point;
         acc_reward_per_share = acc_reward_per_share.clone()
-            + (rewards * U256::pow(U256::from("10"), U256::from("18"))) / pool_info.lp_supply;
+            + (rewards * U256::from(u256_10_18)) / pool_info.lp_supply;
     }
     let return_value = ((user_info_of_this_pool.total_stake_amount * acc_reward_per_share)
-        / U256::pow(U256::from("10"), U256::from("18")))
+        / U256::from(u256_10_18))
         - user_info_of_this_pool.reward_debt
         + user_info_of_this_pool.pending_rewards;
 
@@ -960,11 +972,11 @@ pub extern "C" fn get_pending_rewards() -> U256 {
 
     let pool_info_str: String =
         helpers::get_dictionary_value_from_key(POOL_INFO, &pool_id.clone().to_string()).unwrap();
-    if casper_serde_json_wasm::from_str::<PoolInfo>(&pool_info_str).is_err() {
-        runtime::revert(Error::CanNotGetPoolList)
-    }
+    // if casper_serde_json_wasm::from_str::<PoolInfo>(&pool_info_str).is_err() {
+    //     runtime::revert(Error::CanNotGetPoolList)
+    // }
 
-    let mut pool_info = casper_serde_json_wasm::from_str::<PoolInfo>(&pool_info_str).unwrap();
+    let pool_info = casper_serde_json_wasm::from_str::<PoolInfo>(&pool_info_str).unwrap();
 
     let user_info_of_this_pool = get_user_info(pool_id, user);
     let mut acc_reward_per_share: U256 = pool_info.acc_reward_per_share;
@@ -978,10 +990,10 @@ pub extern "C" fn get_pending_rewards() -> U256 {
         let rewards: U256 =
             (multiplier * reward_per_second * pool_info.alloc_point) / total_alloc_point;
         acc_reward_per_share = acc_reward_per_share.clone()
-            + (rewards * U256::pow(U256::from("10"), U256::from("18"))) / pool_info.lp_supply;
+            + (rewards * U256::from(u256_10_18)) / pool_info.lp_supply;
     }
     let return_value = ((user_info_of_this_pool.total_stake_amount * acc_reward_per_share)
-        / U256::pow(U256::from("10"), U256::from("18")))
+        / U256::from(u256_10_18))
         - user_info_of_this_pool.reward_debt
         + user_info_of_this_pool.pending_rewards;
 
@@ -1047,7 +1059,12 @@ pub extern "C" fn set_reward_per_second() -> Result<(), Error> {
     Ok(())
 }
 
-fn transfer_from_erc20_token(token: Key, source: Key, target: Key, amount: U256) -> Result <(), Error> {
+fn transfer_from_erc20_token(
+    token: Key,
+    source: Key,
+    target: Key,
+    amount: U256,
+) -> Result<(), Error> {
     let contract_hash_addr: HashAddr = token.into_hash().unwrap_or_revert();
     let contract_hash: ContractHash = ContractHash::new(contract_hash_addr);
 
@@ -1063,7 +1080,7 @@ fn transfer_from_erc20_token(token: Key, source: Key, target: Key, amount: U256)
     Ok(())
 }
 
-fn transfer_erc20_token(token: Key, target: Key, amount: U256) -> Result <(), Error> {
+fn transfer_erc20_token(token: Key, target: Key, amount: U256) -> Result<(), Error> {
     let contract_hash_addr: HashAddr = token.into_hash().unwrap_or_revert();
     let contract_hash: ContractHash = ContractHash::new(contract_hash_addr);
 
@@ -1089,9 +1106,8 @@ fn get_balance_erc20_token(token: Key, owner: Key) -> U256 {
             "address" => owner,
         },
     )
-    
 }
-fn mint_reward_to_contract(target: Key, amount: U256) -> Result <(), Error> {
+fn mint_reward_to_contract(target: Key, amount: U256) -> Result<(), Error> {
     let rewards_token: Key = helpers::get_stored_value_with_user_errors::<Key>(
         REWARD_TOKEN,
         Error::MissingRewardToken,
