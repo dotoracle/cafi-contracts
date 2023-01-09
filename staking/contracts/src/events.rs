@@ -32,10 +32,10 @@ pub enum StakingEvent {
         to: Key,
         value: U256,
     },
-    DoTrade {
-        from: Key,
-        to: Key,
-        value: U256,
+    UnStake {
+        user: Key,
+        pool_id : u64,
+        amount: U256,
     },
     Bid {
         token_market_key: String,
@@ -77,11 +77,11 @@ impl StakingEvent {
                 minimum_offer: _,
             } => "offer",
 
-            StakingEvent::DoTrade {
-                from: _,
-                to: _,
-                value: _,
-            } => "dotrade",
+            StakingEvent::UnStake {
+                user: _,
+                pool_id: _,
+                amount: _,
+            } => "un_stake",
 
             StakingEvent::Bid {
                 token_market_key: _,
@@ -156,13 +156,13 @@ pub(crate) fn emit(pair_event: &StakingEvent) {
             events.push(event);
         }
 
-        StakingEvent::DoTrade { from, to, value } => {
+        StakingEvent::UnStake { user, pool_id, amount } => {
             let mut event = BTreeMap::new();
             event.insert("contract_package_hash", package.to_string());
             event.insert("event_type", pair_event.type_name());
-            event.insert("from", from.to_string());
-            event.insert("to", to.to_string());
-            event.insert("value", value.to_string());
+            event.insert("user", user.to_string());
+            event.insert("pool_id", pool_id.to_string());
+            event.insert("amount", amount.to_string());
             events.push(event);
         }
         StakingEvent::Bid { token_market_key, offeror, bidder, value } => {

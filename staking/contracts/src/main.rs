@@ -36,8 +36,7 @@ use events::StakingEvent;
 use helpers::{get_immediate_caller_key, get_self_key, get_user_info_key};
 
 // pub const u256_10_18 : U256 = U256::pow(U256::from("10"), U256::from("18"));
-pub const u256_10_18 : u64 = u64::pow(10,18);
-
+pub const u256_10_18: u64 = u64::pow(10, 6);
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct TokenStake {
@@ -750,7 +749,13 @@ pub extern "C" fn un_stake() -> Result<(), Error> {
         - user_info_of_this_pool.reward_debt;
     let total_pending: U256 = user_info_of_this_pool.pending_rewards + pending;
     user_info_of_this_pool.pending_rewards = U256::from("0");
-    user_info_of_this_pool = pay_rewards(rewards_token, this_key, caller, total_pending, user_info_of_this_pool);
+    user_info_of_this_pool = pay_rewards(
+        rewards_token,
+        this_key,
+        caller,
+        total_pending,
+        user_info_of_this_pool,
+    );
     user_info_of_this_pool.total_stake_amount =
         user_info_of_this_pool.total_stake_amount.clone() - amount.clone();
     pool_info.lp_supply = pool_info.lp_supply.clone() - amount.clone();
@@ -766,6 +771,13 @@ pub extern "C" fn un_stake() -> Result<(), Error> {
         &pool_id.clone().to_string(),
         casper_serde_json_wasm::to_string_pretty(&pool_info).unwrap(),
     );
+
+    // Emit event
+    events::emit(&StakingEvent::UnStake {
+        user: caller.clone(),
+        pool_id: pool_id.clone(),
+        amount: amount.clone(),
+    });
 
     Ok(())
 }
@@ -859,9 +871,19 @@ fn update_pool(rewards_token: Key, pool_id: u64) {
             },
         );
         //update
-        this_pool.acc_reward_per_share = this_pool.acc_reward_per_share.clone()
+        let new_acc_reward_per_share = this_pool.acc_reward_per_share.clone()
             + (reward * U256::from(u256_10_18) / this_pool.lp_supply);
-        this_pool.last_reward_second = current_block_timestamps;
+
+        let new_this_pool = PoolInfo {
+             pool_id: pool_id.clone(),
+             lp_token: this_pool.lp_token,
+             alloc_point: this_pool.alloc_point,
+             last_reward_second: current_block_timestamps.clone(),
+             acc_reward_per_share: new_acc_reward_per_share,
+             min_stake_duration: this_pool.min_stake_duration,
+             early_withdraw_penalty_rate: this_pool.early_withdraw_penalty_rate,
+             lp_supply: this_pool.lp_supply,
+        };
 
         // save pool_info
 
@@ -869,7 +891,7 @@ fn update_pool(rewards_token: Key, pool_id: u64) {
             POOL_INFO,
             &pool_id.to_string(),
             // this_pool,
-            casper_serde_json_wasm::to_string_pretty(&this_pool).unwrap(),
+            casper_serde_json_wasm::to_string_pretty(&new_this_pool).unwrap(),
         );
     }
 }
@@ -928,8 +950,8 @@ pub extern "C" fn get_pending_rewards2() -> U256 {
             get_multiplier(pool_info.last_reward_second, current_block_timestamp);
         let rewards: U256 =
             (multiplier * reward_per_second * pool_info.alloc_point) / total_alloc_point;
-        acc_reward_per_share = acc_reward_per_share.clone()
-            + (rewards * U256::from(u256_10_18)) / pool_info.lp_supply;
+        acc_reward_per_share =
+            acc_reward_per_share.clone() + (rewards * U256::from(u256_10_18)) / pool_info.lp_supply;
     }
     let return_value = ((user_info_of_this_pool.total_stake_amount * acc_reward_per_share)
         / U256::from(u256_10_18))
@@ -989,8 +1011,8 @@ pub extern "C" fn get_pending_rewards() -> U256 {
             get_multiplier(pool_info.last_reward_second, current_block_timestamp);
         let rewards: U256 =
             (multiplier * reward_per_second * pool_info.alloc_point) / total_alloc_point;
-        acc_reward_per_share = acc_reward_per_share.clone()
-            + (rewards * U256::from(u256_10_18)) / pool_info.lp_supply;
+        acc_reward_per_share =
+            acc_reward_per_share.clone() + (rewards * U256::from(u256_10_18)) / pool_info.lp_supply;
     }
     let return_value = ((user_info_of_this_pool.total_stake_amount * acc_reward_per_share)
         / U256::from(u256_10_18))
