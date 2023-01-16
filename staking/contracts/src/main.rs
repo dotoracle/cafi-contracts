@@ -30,13 +30,13 @@ use casper_contract::{
 };
 use casper_types::{
     contracts::NamedKeys, runtime_args, ContractHash, ContractPackageHash, HashAddr, Key,
-    RuntimeArgs, U256,
+    RuntimeArgs, U256, CLValue,
 };
 use events::StakingEvent;
 use helpers::{get_immediate_caller_key, get_self_key, get_user_info_key};
 
 // pub const u256_10_18 : U256 = U256::pow(U256::from("10"), U256::from("18"));
-pub const u256_10_18: u64 = u64::pow(10, 6);
+pub const u256_10_18: u64 = u64::pow(10, 12);
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct TokenStake {
@@ -49,7 +49,7 @@ pub(crate) struct UserInfo {
     total_stake_amount: U256,
     reward_debt: U256,
     pending_rewards: U256,
-    locked_until: U256,
+    // locked_until: U256,
     // stakes: Vec<TokenStake>,
 }
 
@@ -60,8 +60,8 @@ pub(crate) struct PoolInfo {
     pub alloc_point: U256,
     pub last_reward_second: U256,
     pub acc_reward_per_share: U256,
-    pub min_stake_duration: U256,
-    pub early_withdraw_penalty_rate: U256,
+    // pub min_stake_duration: U256,
+    // pub early_withdraw_penalty_rate: U256,
     pub lp_supply: U256,
 }
 
@@ -188,7 +188,7 @@ fn get_user_info(pool_id: u64, user: Key) -> UserInfo {
             total_stake_amount: U256::from("0"),
             reward_debt: U256::from("0"),
             pending_rewards: U256::from("0"),
-            locked_until: U256::from("0"),
+            // locked_until: U256::from("0"),
             // stakes: Vec::new(),
         }
     }
@@ -252,16 +252,16 @@ pub extern "C" fn add_new_pool2() -> Result<(), Error> {
     let alloc_point: U256 = runtime::get_named_arg(ARG_ALLOC_POINT);
     let last_reward_second: U256 = runtime::get_named_arg(ARG_LAST_REWARD_SECOND);
     let acc_reward_per_block: U256 = runtime::get_named_arg(ARG_ACC_REWARD_PER_SHARE);
-    let min_stake_duration: U256 = runtime::get_named_arg(ARG_MIN_STAKE_DURATION);
-    let early_withdraw_penalty_rate: U256 = runtime::get_named_arg(ARG_PENALTY_RATE);
+    // let min_stake_duration: U256 = runtime::get_named_arg(ARG_MIN_STAKE_DURATION);
+    // let early_withdraw_penalty_rate: U256 = runtime::get_named_arg(ARG_PENALTY_RATE);
     let new_pool = PoolInfo {
         pool_id: 0,
         lp_token: lp_contract_hash,
         alloc_point: alloc_point,
         last_reward_second: last_reward_second,
         acc_reward_per_share: acc_reward_per_block,
-        min_stake_duration: min_stake_duration,
-        early_withdraw_penalty_rate: early_withdraw_penalty_rate,
+        // min_stake_duration: min_stake_duration,
+        // early_withdraw_penalty_rate: early_withdraw_penalty_rate,
         lp_supply: U256::from("0"),
     };
 
@@ -350,16 +350,16 @@ pub extern "C" fn add_new_pool() -> Result<(), Error> {
 
     let last_reward_second: U256 = runtime::get_named_arg(ARG_LAST_REWARD_SECOND);
     let acc_reward_per_block: U256 = runtime::get_named_arg(ARG_ACC_REWARD_PER_SHARE);
-    let min_stake_duration: U256 = runtime::get_named_arg(ARG_MIN_STAKE_DURATION);
-    let early_withdraw_penalty_rate: U256 = runtime::get_named_arg(ARG_PENALTY_RATE);
+    // let min_stake_duration: U256 = runtime::get_named_arg(ARG_MIN_STAKE_DURATION);
+    // let early_withdraw_penalty_rate: U256 = runtime::get_named_arg(ARG_PENALTY_RATE);
     let new_pool = PoolInfo {
         pool_id: current_number_of_pool.clone(),
         lp_token: lp_contract_hash,
         alloc_point: alloc_point,
         last_reward_second: last_reward_second,
         acc_reward_per_share: acc_reward_per_block,
-        min_stake_duration: min_stake_duration,
-        early_withdraw_penalty_rate: early_withdraw_penalty_rate,
+        // min_stake_duration: min_stake_duration,
+        // early_withdraw_penalty_rate: early_withdraw_penalty_rate,
         lp_supply: U256::from("0"),
     };
 
@@ -431,7 +431,7 @@ pub extern "C" fn stake() -> Result<(), Error> {
     if amount <= U256::from("0") {
         runtime::revert(Error::InvalidAmount);
     }
-    let stake_duration: U256 = runtime::get_named_arg(ARG_STAKE_DURATION);
+    // let stake_duration: U256 = runtime::get_named_arg(ARG_STAKE_DURATION);
     let rewards_token: Key = helpers::get_stored_value_with_user_errors::<Key>(
         REWARD_TOKEN,
         Error::MissingRewardToken,
@@ -454,10 +454,10 @@ pub extern "C" fn stake() -> Result<(), Error> {
 
     let mut pool_info = casper_serde_json_wasm::from_str::<PoolInfo>(&pool_info_str).unwrap();
 
-    // Check if stake_duration is
-    if stake_duration < pool_info.min_stake_duration {
-        runtime::revert(Error::InvalidStakeDuration);
-    }
+    // // Check if stake_duration is
+    // if stake_duration < pool_info.min_stake_duration {
+    //     runtime::revert(Error::InvalidStakeDuration);
+    // }
     // Todo: write to USER_INFO (userInfo)
 
     let this_key: Key = get_self_key();
@@ -509,7 +509,7 @@ pub extern "C" fn stake() -> Result<(), Error> {
         user: caller.clone(),
         lp_token: lp_token_hash.clone(),
         amount: amount.clone(),
-        stake_duration: stake_duration.clone(),
+        // stake_duration: stake_duration.clone(),
     });
 
     Ok(())
@@ -875,14 +875,14 @@ fn update_pool(rewards_token: Key, pool_id: u64) {
             + (reward * U256::from(u256_10_18) / this_pool.lp_supply);
 
         let new_this_pool = PoolInfo {
-             pool_id: pool_id.clone(),
-             lp_token: this_pool.lp_token,
-             alloc_point: this_pool.alloc_point,
-             last_reward_second: current_block_timestamps.clone(),
-             acc_reward_per_share: new_acc_reward_per_share,
-             min_stake_duration: this_pool.min_stake_duration,
-             early_withdraw_penalty_rate: this_pool.early_withdraw_penalty_rate,
-             lp_supply: this_pool.lp_supply,
+            pool_id: pool_id.clone(),
+            lp_token: this_pool.lp_token,
+            alloc_point: this_pool.alloc_point,
+            last_reward_second: current_block_timestamps.clone(),
+            acc_reward_per_share: new_acc_reward_per_share,
+            //  min_stake_duration: this_pool.min_stake_duration,
+            //  early_withdraw_penalty_rate: this_pool.early_withdraw_penalty_rate,
+            lp_supply: this_pool.lp_supply,
         };
 
         // save pool_info
@@ -963,7 +963,7 @@ pub extern "C" fn get_pending_rewards2() -> U256 {
 
 // View function to see pending rewards of user
 #[no_mangle]
-pub extern "C" fn get_pending_rewards() -> U256 {
+pub extern "C" fn get_pending_rewards() {
     // This is equal to pool_id
     let pool_id: u64 = helpers::get_named_arg_with_user_errors(
         ARG_POOL_ID,
@@ -1014,12 +1014,14 @@ pub extern "C" fn get_pending_rewards() -> U256 {
         acc_reward_per_share =
             acc_reward_per_share.clone() + (rewards * U256::from(u256_10_18)) / pool_info.lp_supply;
     }
-    let return_value = ((user_info_of_this_pool.total_stake_amount * acc_reward_per_share)
+    let maybe_return_value = ((user_info_of_this_pool.total_stake_amount * acc_reward_per_share)
         / U256::from(u256_10_18))
         - user_info_of_this_pool.reward_debt
         + user_info_of_this_pool.pending_rewards;
 
-    return_value
+    let return_value = CLValue::from_t(maybe_return_value)
+        .unwrap_or_revert_with(Error::FailedToConvertToCLValue);
+    runtime::ret(return_value)
 }
 
 #[no_mangle]

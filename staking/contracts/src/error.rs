@@ -51,6 +51,7 @@ pub enum Error {
     MissingNumberOfPool = 125,
     InvalidNumberOfPool = 126,
     CanNotGetUserInfo = 127,
+    FailedToConvertToCLValue = 128,
 
     
 }

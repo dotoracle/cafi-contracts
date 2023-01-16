@@ -402,7 +402,7 @@ pub(crate) fn get_unlock_id_key(unlock_id: &str) -> String {
 }
 
 pub(crate) fn get_user_info_key(pool_id: u64, user: Key) -> String {
-    let user_hash_binding = user.to_string();
+    let user_hash_binding = user.to_formatted_string();
     let user_hash_bytes = user_hash_binding.as_bytes();
     let pool_id_binding = pool_id.to_string();
     let pool_id_bytes = pool_id_binding.as_bytes();

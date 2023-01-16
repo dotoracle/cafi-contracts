@@ -79,7 +79,7 @@ fn get_pending_rewards() -> EntryPoint {
         vec![
             
         ],
-        CLType::Unit,
+        CLType::U256,
         EntryPointAccess::Public,
         EntryPointType::Contract,
     )

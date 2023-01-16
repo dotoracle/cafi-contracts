@@ -48,7 +48,7 @@ pub enum StakingEvent {
         user: Key,
         lp_token: Key,
         amount: U256,
-        stake_duration: U256,
+        // stake_duration: U256,
         // token_id: u8,
     },
     Withdrawal {
@@ -94,7 +94,7 @@ impl StakingEvent {
                 user: _,
                 lp_token: _,
                 amount: _,
-                stake_duration: _,
+                // stake_duration: _,
                 // token_id: _,
             } => "user_stake",
             StakingEvent::Withdrawal {
@@ -179,7 +179,7 @@ pub(crate) fn emit(pair_event: &StakingEvent) {
             user,
             lp_token,
             amount,
-            stake_duration,
+            // stake_duration,
             // token_id,
         } => {
             let mut event = BTreeMap::new();
@@ -188,7 +188,7 @@ pub(crate) fn emit(pair_event: &StakingEvent) {
             event.insert("user", user.to_string());
             event.insert("lp_token", lp_token.to_string());
             event.insert("amount", amount.to_string());
-            event.insert("stake_duration", stake_duration.to_string());
+            // event.insert("stake_duration", stake_duration.to_string());
             events.push(event);
         }
         StakingEvent::Withdrawal {
