@@ -13,9 +13,9 @@ use serde::{Deserialize, Serialize};
 pub fn default(
     contract_owner: Key,
     reward_token: Key,
-    token_per_block: U128,
+    token_per_block: u128,
     contract_package_hash: ContractPackageHash,
-    start_block: U128,
+    start_block: u64,
 ) -> NamedKeys {
     let mut named_keys = NamedKeys::new();
 

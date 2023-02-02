@@ -30,25 +30,26 @@ use casper_contract::{
 };
 use casper_types::{
     contracts::NamedKeys, runtime_args, ContractHash, ContractPackageHash, HashAddr, Key,
-    RuntimeArgs, U256, CLValue, U128, 
+    RuntimeArgs, U256, CLValue, U128
 };
 use events::StakingEvent;
 use helpers::{get_immediate_caller_key, get_self_key, get_user_info_key};
 
 // pub const u256_10_18 : U256 = U256::pow(U256::from("10"), U256::from("18"));
 pub const u256_10_18: u64 = u64::pow(10, 12);
+pub const ACC_MULTIPLIER: u128 = (u64::pow(10, 12) as u128);
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct TokenStake {
-    stake_amount: U256,
-    locked_from: U256,
-    locked_until: U256,
+    stake_amount: u128,
+    locked_from: u128,
+    locked_until: u128,
 }
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct UserInfo {
-    total_stake_amount: U128,
-    reward_debt: U128,
-    pending_rewards: U128,
+    total_stake_amount: u128,
+    reward_debt: u128,
+    pending_rewards: u128,
     // locked_until: U256,
     // stakes: Vec<TokenStake>,
 }
@@ -57,12 +58,12 @@ pub(crate) struct UserInfo {
 pub(crate) struct PoolInfo {
     pub pool_id: u64,
     pub lp_token: Key,
-    pub alloc_point: U128,
-    pub last_reward_second: U128,
-    pub acc_reward_per_share: U128,
+    pub alloc_point: u64,
+    pub last_reward_second: u64,
+    pub acc_reward_per_share: u128,
     // pub min_stake_duration: U256,
     // pub early_withdraw_penalty_rate: U256,
-    pub lp_supply: U128,
+    pub lp_supply: u128
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -81,9 +82,10 @@ pub extern "C" fn init() {
 
     let reward_token: Key = runtime::get_named_arg(ARG_REWARD_TOKEN);
 
-    let reward_per_second: U128 = runtime::get_named_arg(ARG_REWARD_PER_SECOND);
+    let reward_per_second_U256: U256 = runtime::get_named_arg(ARG_REWARD_PER_SECOND);
+    let reward_per_second = reward_per_second_U256.as_u128();
 
-    let start_second: U128 = runtime::get_named_arg(ARG_START_SECOND);
+    let start_second: u64 = runtime::get_named_arg(ARG_START_SECOND);
 
     runtime::put_key(
         CONTRACT_HASH_KEY_NAME,
@@ -98,11 +100,11 @@ pub extern "C" fn init() {
     runtime::put_key(REWARD_TOKEN, storage::new_uref(reward_token).into());
     runtime::put_key(
         REWARD_PER_SECOND,
-        storage::new_uref(reward_per_second as U128).into(),
+        storage::new_uref(reward_per_second_U256).into(),
     );
-    runtime::put_key(START_BLOCK, storage::new_uref(start_second as U128).into());
+    runtime::put_key(START_BLOCK, storage::new_uref(start_second).into());
     runtime::put_key(NUMBER_OF_POOL, storage::new_uref(0 as u64).into());
-    runtime::put_key(TOTAL_ALLOC_POINT, storage::new_uref(U128::from("0")).into());
+    runtime::put_key(TOTAL_ALLOC_POINT, storage::new_uref(0 as u64).into());
 
     // let init_pool_list = PoolList {
     //     all_pool: Vec::new(),
@@ -126,8 +128,9 @@ fn call() {
     let contract_package_hash_key_name = String::from(contract_name.clone() + "_package_name");
     let contract_owner: Key = runtime::get_named_arg(ARG_CONTRACT_OWNER);
     let reward_token: Key = runtime::get_named_arg(ARG_REWARD_TOKEN);
-    let reward_per_second: U128 = runtime::get_named_arg(ARG_REWARD_PER_SECOND);
-    let start_second: U128 = runtime::get_named_arg(ARG_START_SECOND);
+    let reward_per_second_U256: U256 = runtime::get_named_arg(ARG_REWARD_PER_SECOND);
+    let reward_per_second = reward_per_second_U256.as_u128();
+    let start_second: u64 = runtime::get_named_arg(ARG_START_SECOND);
 
     let (contract_package_hash, access_uref) = storage::create_contract_package_at_hash();
 
@@ -153,7 +156,7 @@ fn call() {
             ARG_CONTRACT_HASH => Key::from(contract_hash),
             ARG_CONTRACT_OWNER => Key::from(contract_owner),
             ARG_REWARD_TOKEN => Key::from(reward_token),
-            ARG_REWARD_PER_SECOND => reward_per_second,
+            ARG_REWARD_PER_SECOND => reward_per_second_U256,
             ARG_START_SECOND => start_second,
         },
     );
@@ -185,9 +188,9 @@ fn get_user_info(pool_id: u64, user: Key) -> UserInfo {
         // };
     } else {
         user_info = UserInfo {
-            total_stake_amount: U128::zero(),
-            reward_debt: U128::zero(),
-            pending_rewards: U128::zero(),
+            total_stake_amount: 0,
+            reward_debt: 0,
+            pending_rewards: 0,
             // locked_until: U256::from("0"),
             // stakes: Vec::new(),
         }
@@ -346,10 +349,10 @@ pub extern "C" fn add_new_pool() -> Result<(), Error> {
     //     runtime::revert(Error::PoolAlreadyInit);
     // }
 
-    let alloc_point: U128 = runtime::get_named_arg(ARG_ALLOC_POINT);
+    let alloc_point: u64 = runtime::get_named_arg(ARG_ALLOC_POINT);
 
-    let last_reward_second: U128 = runtime::get_named_arg(ARG_LAST_REWARD_SECOND);
-    let acc_reward_per_block: U128 = runtime::get_named_arg(ARG_ACC_REWARD_PER_SHARE);
+    let last_reward_second: u64 = runtime::get_named_arg(ARG_LAST_REWARD_SECOND);
+    // let acc_reward_per_block: U128 = runtime::get_named_arg(ARG_ACC_REWARD_PER_SHARE);
     // let min_stake_duration: U256 = runtime::get_named_arg(ARG_MIN_STAKE_DURATION);
     // let early_withdraw_penalty_rate: U256 = runtime::get_named_arg(ARG_PENALTY_RATE);
     let new_pool = PoolInfo {
@@ -357,10 +360,10 @@ pub extern "C" fn add_new_pool() -> Result<(), Error> {
         lp_token: lp_contract_hash,
         alloc_point: alloc_point,
         last_reward_second: last_reward_second,
-        acc_reward_per_share: acc_reward_per_block,
+        acc_reward_per_share: 0,
         // min_stake_duration: min_stake_duration,
         // early_withdraw_penalty_rate: early_withdraw_penalty_rate,
-        lp_supply: U128::from("0"),
+        lp_supply: 0,
     };
 
     // let current_list_str: String = helpers::get_stored_value_with_user_errors(
@@ -383,13 +386,13 @@ pub extern "C" fn add_new_pool() -> Result<(), Error> {
     // list.push(new_pool);
     // let add_pool_list = PoolList { all_pool: list };
 
-    let total_alloc_point: U128 = helpers::get_stored_value_with_user_errors::<U128>(
+    let total_alloc_point: u64 = helpers::get_stored_value_with_user_errors::<u64>(
         TOTAL_ALLOC_POINT,
         Error::MissingTotalAllocPoint,
         Error::InvalidTotalAllocPoint,
     );
 
-    let new_total_alloc_point: U128 = total_alloc_point + alloc_point;
+    let new_total_alloc_point = total_alloc_point + alloc_point;
 
     // set_key(
     //     POOL_INFO,
@@ -427,8 +430,9 @@ pub extern "C" fn add_new_pool() -> Result<(), Error> {
 pub extern "C" fn stake() -> Result<(), Error> {
     // This is equal to pool_id
     let pool_id: u64 = runtime::get_named_arg(ARG_POOL_ID);
-    let amount: U128 = runtime::get_named_arg(ARG_AMOUNT);
-    if amount <= U128::from("0") {
+    let amount_U128: U128 = runtime::get_named_arg(ARG_AMOUNT);
+    let amount = amount_U128.as_u128();
+    if amount == 0 {
         runtime::revert(Error::InvalidAmount);
     }
     // let stake_duration: U256 = runtime::get_named_arg(ARG_STAKE_DURATION);
@@ -440,19 +444,10 @@ pub extern "C" fn stake() -> Result<(), Error> {
 
     // let pool_id_usize: usize = pool_id as usize;
     // update pool with pool_id
-    update_pool(rewards_token, pool_id.clone());
+    let mut pool_info = get_pool_info(pool_id);
+    update_pool(&mut pool_info, rewards_token, pool_id.clone());
 
     let caller = get_immediate_caller_key();
-
-    // get pool_info
-
-    let pool_info_str: String =
-        helpers::get_dictionary_value_from_key(POOL_INFO, &pool_id.to_string()).unwrap();
-    // if casper_serde_json_wasm::from_str::<PoolInfo>(&pool_info_str).is_err() {
-    //     runtime::revert(Error::CanNotGetPoolList)
-    // }
-
-    let mut pool_info = casper_serde_json_wasm::from_str::<PoolInfo>(&pool_info_str).unwrap();
 
     // // Check if stake_duration is
     // if stake_duration < pool_info.min_stake_duration {
@@ -463,38 +458,36 @@ pub extern "C" fn stake() -> Result<(), Error> {
     let this_key: Key = get_self_key();
 
     let mut user_info_of_this_pool = get_user_info(pool_id, caller);
-    if user_info_of_this_pool.total_stake_amount > U128::from("0") {
+    if user_info_of_this_pool.total_stake_amount > 0 {
         // pay pending rewards
-        let pending_rewards: U128 = (user_info_of_this_pool.total_stake_amount.clone()
+        let pending_rewards = (user_info_of_this_pool.total_stake_amount.clone()
             * pool_info.acc_reward_per_share.clone()
-            / U128::from(u256_10_18))
+            / ACC_MULTIPLIER)
             - user_info_of_this_pool.reward_debt;
-        let total_pending: U128 = user_info_of_this_pool.pending_rewards.clone() + pending_rewards;
+        let total_pending = user_info_of_this_pool.pending_rewards.clone() + pending_rewards;
 
-        user_info_of_this_pool = pay_rewards(
+        pay_rewards(
             rewards_token,
             this_key,
             caller,
             pending_rewards,
-            user_info_of_this_pool.clone(),
+            &mut user_info_of_this_pool,
         );
     }
     // Call transfer_from function to transfer deposit to this contract
 
     let lp_token_hash = pool_info.lp_token;
     // transfer lp_token to the pool
-    transfer_from_erc20_token(lp_token_hash, caller, this_key, U256::from(amount.clone().as_u128()));
+    transfer_from_erc20_token(lp_token_hash, caller, this_key, amount.clone());
 
     // Recalculate  user_info and pool_info
     user_info_of_this_pool.total_stake_amount =
         user_info_of_this_pool.total_stake_amount.clone() + amount.clone();
     pool_info.lp_supply = pool_info.lp_supply.clone() + amount.clone();
 
-    // Todo: rewards debt
-
     user_info_of_this_pool.reward_debt = user_info_of_this_pool.total_stake_amount.clone()
         * pool_info.acc_reward_per_share.clone()
-        / U128::from(u256_10_18);
+        / ACC_MULTIPLIER;
 
     // save
     write_dictionary_user_info(pool_id, caller, user_info_of_this_pool);
@@ -508,7 +501,7 @@ pub extern "C" fn stake() -> Result<(), Error> {
     events::emit(&StakingEvent::UserStake {
         user: caller.clone(),
         lp_token: lp_token_hash.clone(),
-        amount: amount.clone(),
+        amount: U128::from(amount),
         // stake_duration: stake_duration.clone(),
     });
 
@@ -703,13 +696,14 @@ pub extern "C" fn un_stake() -> Result<(), Error> {
         Error::InvalidPoolId,
     )
     .unwrap_or_revert();
-    let amount: U128 = helpers::get_named_arg_with_user_errors(
+    let amount_U128: U128 = helpers::get_named_arg_with_user_errors(
         ARG_AMOUNT,
         Error::MissingAmount,
         Error::InvalidAmount,
     )
     .unwrap_or_revert();
-    if amount <= U128::from("0") {
+    let amount = amount_U128.as_u128();
+    if amount == 0 {
         runtime::revert(Error::InvalidAmount);
     }
 
@@ -721,19 +715,10 @@ pub extern "C" fn un_stake() -> Result<(), Error> {
 
     // let pool_id_usize: usize = pool_id.clone() as usize;
     // update pool with pool_id
-    update_pool(rewards_token, pool_id.clone());
+    let mut pool_info = get_pool_info(pool_id);
+    update_pool(&mut pool_info, rewards_token, pool_id.clone());
 
     let caller = get_immediate_caller_key();
-
-    // get pool_info
-
-    let pool_info_str: String =
-        helpers::get_dictionary_value_from_key(POOL_INFO, &pool_id.clone().to_string()).unwrap();
-    if casper_serde_json_wasm::from_str::<PoolInfo>(&pool_info_str).is_err() {
-        runtime::revert(Error::CanNotGetPoolList)
-    }
-
-    let mut pool_info = casper_serde_json_wasm::from_str::<PoolInfo>(&pool_info_str).unwrap();
 
     let this_key: Key = get_self_key();
 
@@ -744,25 +729,25 @@ pub extern "C" fn un_stake() -> Result<(), Error> {
         runtime::revert(Error::InvalidAmount);
     }
 
-    let pending: U128 = user_info_of_this_pool.total_stake_amount * pool_info.acc_reward_per_share
-        / U128::from(u256_10_18)
+    let pending = user_info_of_this_pool.total_stake_amount * pool_info.acc_reward_per_share
+        / ACC_MULTIPLIER
         - user_info_of_this_pool.reward_debt;
-    let total_pending: U128 = user_info_of_this_pool.pending_rewards + pending;
-    user_info_of_this_pool.pending_rewards = U128::from("0");
-    user_info_of_this_pool = pay_rewards(
+    let total_pending = user_info_of_this_pool.pending_rewards + pending;
+    user_info_of_this_pool.pending_rewards = 0;
+    pay_rewards(
         rewards_token,
         this_key,
         caller,
         total_pending,
-        user_info_of_this_pool,
+        &mut user_info_of_this_pool,
     );
     user_info_of_this_pool.total_stake_amount =
         user_info_of_this_pool.total_stake_amount.clone() - amount.clone();
     pool_info.lp_supply = pool_info.lp_supply.clone() - amount.clone();
-    transfer_erc20_token(pool_info.lp_token.clone(), caller, U256::from(amount.as_u128()));
+    transfer_erc20_token(pool_info.lp_token.clone(), caller, amount);
     user_info_of_this_pool.reward_debt = user_info_of_this_pool.total_stake_amount
         * pool_info.acc_reward_per_share
-        / U128::from(u256_10_18);
+        / ACC_MULTIPLIER;
 
     // save
     write_dictionary_user_info(pool_id, caller, user_info_of_this_pool);
@@ -776,7 +761,7 @@ pub extern "C" fn un_stake() -> Result<(), Error> {
     events::emit(&StakingEvent::UnStake {
         user: caller.clone(),
         pool_id: pool_id.clone(),
-        amount: amount.clone(),
+        amount: amount.into(),
     });
 
     Ok(())
@@ -786,9 +771,9 @@ fn pay_rewards(
     rewards_token: Key,
     this_contract: Key,
     user: Key,
-    rewards_amount: U128,
-    mut user_info_of_this_pool: UserInfo,
-) -> UserInfo {
+    rewards_amount: u128,
+    user_info_of_this_pool: &mut UserInfo,
+) {
     // transfer rewards
     // let rewards_token: Key = helpers::get_stored_value_with_user_errors::<Key>(
     //     REWARD_TOKEN,
@@ -796,57 +781,47 @@ fn pay_rewards(
     //     Error::InvalidRewardToken,
     // );
 
-    let reward_token_balance_of_contract: U256 =
+    let reward_token_balance_of_contract =
         get_balance_erc20_token(rewards_token, this_contract);
-    if reward_token_balance_of_contract < U256::from(rewards_amount.as_u128()) {
+    if reward_token_balance_of_contract < rewards_amount {
         transfer_erc20_token(rewards_token, user, reward_token_balance_of_contract);
         user_info_of_this_pool.pending_rewards =
-            user_info_of_this_pool.pending_rewards - U128::from(reward_token_balance_of_contract.as_u128()) ;
+            user_info_of_this_pool.pending_rewards - reward_token_balance_of_contract;
     } else {
-        transfer_erc20_token(rewards_token, user, U256::from(rewards_amount.as_u128()));
-        user_info_of_this_pool.pending_rewards = U128::from("0");
+        transfer_erc20_token(rewards_token, user, rewards_amount);
+        user_info_of_this_pool.pending_rewards = 0;
     }
-    user_info_of_this_pool
 }
 
-fn get_multiplier(from: U128, to: U128) -> U128 {
+fn get_multiplier(from: u64, to: u64) -> u64 {
     let multiplier = to - from;
     multiplier
 }
-fn update_pool(rewards_token: Key, pool_id: u64) {
-    // get Pool_Info of this pool
-
-    let pool_info_str: String =
-        helpers::get_dictionary_value_from_key(POOL_INFO, &pool_id.to_string()).unwrap();
-    // if casper_serde_json_wasm::from_str::<PoolInfo>(&pool_info_str).is_err() {
-    //     runtime::revert(Error::CanNotGetPoolList)
-    // }
-
-    let mut this_pool = casper_serde_json_wasm::from_str::<PoolInfo>(&pool_info_str).unwrap();
-
+fn update_pool(this_pool: &mut PoolInfo, rewards_token: Key, pool_id: u64) {
     // get current block stamps
-    let current_block_timestamps: U128 = U128::from(current_block_timestamp());
+    let current_block_timestamps = (current_block_timestamp() as u64);
 
     if current_block_timestamps <= this_pool.last_reward_second {
         runtime::revert(Error::InvalidContext);
     }
 
     // Todo: update pool
-    let multiplier: U128 = get_multiplier(this_pool.last_reward_second, current_block_timestamps);
-    let total_alloc_point: U128 = helpers::get_stored_value_with_user_errors::<U128>(
+    let multiplier: u128 = (get_multiplier(this_pool.last_reward_second, current_block_timestamps) as u128);
+    let total_alloc_point: u64 = helpers::get_stored_value_with_user_errors::<u64>(
         TOTAL_ALLOC_POINT,
         Error::MissingTotalAllocPoint,
         Error::InvalidTotalAllocPoint,
     );
-    let reward_per_second: U128 = helpers::get_stored_value_with_user_errors::<U128>(
+    let reward_per_second_U256: U256 = helpers::get_stored_value_with_user_errors::<U256>(
         REWARD_PER_SECOND,
         Error::MissingRewardPerSecond,
         Error::InvalidRewardPerSecond,
     );
+    let reward_per_second = reward_per_second_U256.as_u128();
 
-    if total_alloc_point > U128::from("0") && this_pool.lp_supply != U128::from("0") {
-        let reward: U128 =
-            multiplier * reward_per_second * this_pool.alloc_point / total_alloc_point;
+    if total_alloc_point > 0 && this_pool.lp_supply != 0 {
+        let reward =
+            multiplier * reward_per_second * (this_pool.alloc_point as u128) / (total_alloc_point as u128);
         // Todo: transfer reward to this contract
 
         let contract_key: Key = get_self_key();
@@ -867,12 +842,12 @@ fn update_pool(rewards_token: Key, pool_id: u64) {
             MINT_ENTRY_POINT_NAME,
             runtime_args! {
                 "owner" => contract_key,
-                "amount" => reward,
+                "amount" => U256::from(reward),
             },
         );
         //update
         let new_acc_reward_per_share = this_pool.acc_reward_per_share.clone()
-            + (reward * U128::from(u256_10_18) / this_pool.lp_supply);
+            + (reward * ACC_MULTIPLIER / this_pool.lp_supply);
 
         let new_this_pool = PoolInfo {
             pool_id: pool_id.clone(),
@@ -1087,7 +1062,7 @@ fn transfer_from_erc20_token(
     token: Key,
     source: Key,
     target: Key,
-    amount: U256,
+    amount: u128,
 ) -> Result<(), Error> {
     let contract_hash_addr: HashAddr = token.into_hash().unwrap_or_revert();
     let contract_hash: ContractHash = ContractHash::new(contract_hash_addr);
@@ -1098,13 +1073,13 @@ fn transfer_from_erc20_token(
         runtime_args! {
             "owner" => source,
             "recipient" => target,
-            "amount" => amount,
+            "amount" => U256::from(amount),
         },
     );
     Ok(())
 }
 
-fn transfer_erc20_token(token: Key, target: Key, amount: U256) -> Result<(), Error> {
+fn transfer_erc20_token(token: Key, target: Key, amount: u128) -> Result<(), Error> {
     let contract_hash_addr: HashAddr = token.into_hash().unwrap_or_revert();
     let contract_hash: ContractHash = ContractHash::new(contract_hash_addr);
 
@@ -1113,23 +1088,24 @@ fn transfer_erc20_token(token: Key, target: Key, amount: U256) -> Result<(), Err
         TRANSFER_ENTRY_POINT_NAME,
         runtime_args! {
             "recipient" => target,
-            "amount" => amount,
+            "amount" => U256::from(amount),
         },
     );
     Ok(())
 }
 
-fn get_balance_erc20_token(token: Key, owner: Key) -> U256 {
+fn get_balance_erc20_token(token: Key, owner: Key) -> u128 {
     let contract_hash_addr: HashAddr = token.into_hash().unwrap_or_revert();
     let contract_hash: ContractHash = ContractHash::new(contract_hash_addr);
 
-    runtime::call_contract::<U256>(
+    let b = runtime::call_contract::<U256>(
         contract_hash,
         BALANCE_OF_ENTRY_POINT_NAME,
         runtime_args! {
             "address" => owner,
         },
-    )
+    );
+    b.as_u128()
 }
 fn mint_reward_to_contract(target: Key, amount: U256) -> Result<(), Error> {
     let rewards_token: Key = helpers::get_stored_value_with_user_errors::<Key>(

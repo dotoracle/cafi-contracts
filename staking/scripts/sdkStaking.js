@@ -167,12 +167,12 @@ const Staking = class {
     );
     let runtimeArgs = {};
     runtimeArgs = RuntimeArgs.fromMap({
-      alloc_point: CLValueBuilder.u256(allocPoint),
+      alloc_point: CLValueBuilder.u64(allocPoint),
       lp_contract_hash: createRecipientAddress(lpContractHash),
       acc_reward_per_share: CLValueBuilder.u256(accRewardPerShare),
       min_stake_duration: CLValueBuilder.u256(minStakeDuration),
       penalty_rate : CLValueBuilder.u256(penaltyRate),
-      last_reward_second : CLValueBuilder.u256(lastRewardSecond),
+      last_reward_second : CLValueBuilder.u64(lastRewardSecond),
     })
     console.log("sending");
     console.log(paymentAmount)
