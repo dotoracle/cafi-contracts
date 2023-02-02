@@ -12,7 +12,7 @@ use alloc::{
 };
 
 use casper_contract::contract_api::{runtime, storage};
-use casper_types::{account::AccountHash, ContractPackageHash, HashAddr, Key, URef, U256};
+use casper_types::{account::AccountHash, ContractPackageHash, HashAddr, Key, URef, U256, U128};
 
 use crate::helpers::*; 
 
@@ -35,7 +35,7 @@ pub enum StakingEvent {
     UnStake {
         user: Key,
         pool_id : u64,
-        amount: U256,
+        amount: U128,
     },
     Bid {
         token_market_key: String,
@@ -47,7 +47,7 @@ pub enum StakingEvent {
     UserStake {
         user: Key,
         lp_token: Key,
-        amount: U256,
+        amount: U128,
         // stake_duration: U256,
         // token_id: u8,
     },

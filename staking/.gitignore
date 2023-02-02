@@ -4,7 +4,6 @@ keys.json
 target
 contracts/target
 contractinfo.json
-scripts
 *.pem
 
 

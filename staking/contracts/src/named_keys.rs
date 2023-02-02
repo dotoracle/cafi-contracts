@@ -4,7 +4,7 @@ use alloc::{
 };
 
 use casper_contract::contract_api::storage;
-use casper_types::{contracts::NamedKeys, ContractPackageHash, Key, U256};
+use casper_types::{contracts::NamedKeys, ContractPackageHash, Key, U256, U128};
 
 use crate::constants::*;
 use serde::{Deserialize, Serialize};
@@ -13,9 +13,9 @@ use serde::{Deserialize, Serialize};
 pub fn default(
     contract_owner: Key,
     reward_token: Key,
-    token_per_block: U256,
+    token_per_block: U128,
     contract_package_hash: ContractPackageHash,
-    start_block: U256,
+    start_block: U128,
 ) -> NamedKeys {
     let mut named_keys = NamedKeys::new();
 
