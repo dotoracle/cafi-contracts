@@ -58,8 +58,8 @@ const test = async () => {
     "staking_contract_name": CLValueBuilder.string("this_is_STAKE"),
     "contract_owner": createRecipientAddress(CLPublicKey.fromHex(dev)), //ABB
     "reward_token": createRecipientAddress(rewardHash),
-    "reward_per_second": CLValueBuilder.u128("8"), // 80/1000 = 8%
-    "start_second": CLValueBuilder.u128("1673682227"), // 50/1000 = 5%
+    "reward_per_second": CLValueBuilder.u256("8"), // 80/1000 = 8%
+    "start_second": CLValueBuilder.u64("1673682227"), // 50/1000 = 5%
   });
 
   console.log("A")

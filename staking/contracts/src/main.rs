@@ -29,8 +29,8 @@ use casper_contract::{
     unwrap_or_revert::UnwrapOrRevert,
 };
 use casper_types::{
-    contracts::NamedKeys, runtime_args, ContractHash, ContractPackageHash, HashAddr, Key,
-    RuntimeArgs, U256, CLValue, U128
+    contracts::NamedKeys, runtime_args, CLValue, ContractHash, ContractPackageHash, HashAddr, Key,
+    RuntimeArgs, U128, U256,
 };
 use events::StakingEvent;
 use helpers::{get_immediate_caller_key, get_self_key, get_user_info_key};
@@ -63,7 +63,7 @@ pub(crate) struct PoolInfo {
     pub acc_reward_per_share: u128,
     // pub min_stake_duration: U256,
     // pub early_withdraw_penalty_rate: U256,
-    pub lp_supply: u128
+    pub lp_supply: u128,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -188,9 +188,9 @@ fn get_user_info(pool_id: u64, user: Key) -> UserInfo {
         // };
     } else {
         user_info = UserInfo {
-            total_stake_amount: 0,
-            reward_debt: 0,
-            pending_rewards: 0,
+            total_stake_amount: 0 as u128,
+            reward_debt: 0 as u128,
+            pending_rewards: 0 as u128,
             // locked_until: U256::from("0"),
             // stakes: Vec::new(),
         }
@@ -210,7 +210,7 @@ fn write_dictionary_user_info(
     write_dictionary_value_from_key(
         USER_INFO,
         &user_info_key,
-        casper_serde_json_wasm::to_string_pretty(&new_user_info).unwrap(),
+        casper_serde_json_wasm::to_string(&new_user_info).unwrap(),
     );
 
     Ok(())
@@ -220,9 +220,9 @@ fn write_dictionary_user_info(
 fn get_pool_info(pool_id: u64) -> PoolInfo {
     let pool_info_str: String =
         helpers::get_dictionary_value_from_key(POOL_INFO, &pool_id.clone().to_string()).unwrap();
-    if casper_serde_json_wasm::from_str::<PoolInfo>(&pool_info_str).is_err() {
-        runtime::revert(Error::CanNotGetPoolList)
-    }
+    // if casper_serde_json_wasm::from_str::<PoolInfo>(&pool_info_str).is_err() {
+    //     runtime::revert(Error::CanNotGetPoolList)
+    // }
 
     let pool_info = casper_serde_json_wasm::from_str::<PoolInfo>(&pool_info_str).unwrap();
 
@@ -360,10 +360,10 @@ pub extern "C" fn add_new_pool() -> Result<(), Error> {
         lp_token: lp_contract_hash,
         alloc_point: alloc_point,
         last_reward_second: last_reward_second,
-        acc_reward_per_share: 0,
+        acc_reward_per_share: 0 as u128,
         // min_stake_duration: min_stake_duration,
         // early_withdraw_penalty_rate: early_withdraw_penalty_rate,
-        lp_supply: 0,
+        lp_supply: 0 as u128,
     };
 
     // let current_list_str: String = helpers::get_stored_value_with_user_errors(
@@ -401,7 +401,7 @@ pub extern "C" fn add_new_pool() -> Result<(), Error> {
     write_dictionary_value_from_key(
         POOL_INFO,
         &current_number_of_pool.clone().to_string(),
-        casper_serde_json_wasm::to_string_pretty(&new_pool).unwrap(),
+        casper_serde_json_wasm::to_string(&new_pool).unwrap(),
     );
 
     set_key(TOTAL_ALLOC_POINT, new_total_alloc_point);
@@ -444,8 +444,24 @@ pub extern "C" fn stake() -> Result<(), Error> {
 
     // let pool_id_usize: usize = pool_id as usize;
     // update pool with pool_id
-    let mut pool_info = get_pool_info(pool_id);
-    update_pool(&mut pool_info, rewards_token, pool_id.clone());
+    // let mut pool_info = get_pool_info(pool_id);
+    let pool_info_str: String =
+        helpers::get_dictionary_value_from_key(POOL_INFO, &pool_id.clone().to_string()).unwrap();
+    if casper_serde_json_wasm::from_str::<PoolInfo>(&pool_info_str).is_err() {
+        runtime::revert(Error::CanNotGetPoolList)
+    }
+
+    let mut pool_info = casper_serde_json_wasm::from_str::<PoolInfo>(&pool_info_str).unwrap();
+
+    pool_info = update_pool(pool_info, rewards_token, pool_id.clone());
+
+    // let pool_info_str: String =
+    //     helpers::get_dictionary_value_from_key(POOL_INFO, &pool_id.to_string()).unwrap();
+    // if casper_serde_json_wasm::from_str::<PoolInfo>(&pool_info_str).is_err() {
+    //     runtime::revert(Error::WrongPoolInfoGetting)
+    // }
+
+    // let mut pool_info = casper_serde_json_wasm::from_str::<PoolInfo>(&pool_info_str).unwrap();
 
     let caller = get_immediate_caller_key();
 
@@ -495,7 +511,7 @@ pub extern "C" fn stake() -> Result<(), Error> {
     write_dictionary_value_from_key(
         POOL_INFO,
         &pool_id.clone().to_string(),
-        casper_serde_json_wasm::to_string_pretty(&pool_info).unwrap(),
+        casper_serde_json_wasm::to_string(&pool_info).unwrap(),
     );
     // Emit event
     events::emit(&StakingEvent::UserStake {
@@ -715,8 +731,24 @@ pub extern "C" fn un_stake() -> Result<(), Error> {
 
     // let pool_id_usize: usize = pool_id.clone() as usize;
     // update pool with pool_id
-    let mut pool_info = get_pool_info(pool_id);
-    update_pool(&mut pool_info, rewards_token, pool_id.clone());
+    // let mut pool_info = get_pool_info(pool_id);
+    let pool_info_str: String =
+        helpers::get_dictionary_value_from_key(POOL_INFO, &pool_id.clone().to_string()).unwrap();
+    if casper_serde_json_wasm::from_str::<PoolInfo>(&pool_info_str).is_err() {
+        runtime::revert(Error::CanNotGetPoolList)
+    }
+
+    let mut pool_info = casper_serde_json_wasm::from_str::<PoolInfo>(&pool_info_str).unwrap();
+
+    pool_info = update_pool(pool_info, rewards_token, pool_id.clone());
+    // get pool_info
+    // let pool_info_str: String =
+    //     helpers::get_dictionary_value_from_key(POOL_INFO, &pool_id.clone().to_string()).unwrap();
+    // if casper_serde_json_wasm::from_str::<PoolInfo>(&pool_info_str).is_err() {
+    //     runtime::revert(Error::CanNotGetPoolList)
+    // }
+
+    // let mut pool_info = casper_serde_json_wasm::from_str::<PoolInfo>(&pool_info_str).unwrap();
 
     let caller = get_immediate_caller_key();
 
@@ -745,16 +777,15 @@ pub extern "C" fn un_stake() -> Result<(), Error> {
         user_info_of_this_pool.total_stake_amount.clone() - amount.clone();
     pool_info.lp_supply = pool_info.lp_supply.clone() - amount.clone();
     transfer_erc20_token(pool_info.lp_token.clone(), caller, amount);
-    user_info_of_this_pool.reward_debt = user_info_of_this_pool.total_stake_amount
-        * pool_info.acc_reward_per_share
-        / ACC_MULTIPLIER;
+    user_info_of_this_pool.reward_debt =
+        user_info_of_this_pool.total_stake_amount * pool_info.acc_reward_per_share / ACC_MULTIPLIER;
 
     // save
     write_dictionary_user_info(pool_id, caller, user_info_of_this_pool);
     write_dictionary_value_from_key(
         POOL_INFO,
         &pool_id.clone().to_string(),
-        casper_serde_json_wasm::to_string_pretty(&pool_info).unwrap(),
+        casper_serde_json_wasm::to_string(&pool_info).unwrap(),
     );
 
     // Emit event
@@ -781,8 +812,7 @@ fn pay_rewards(
     //     Error::InvalidRewardToken,
     // );
 
-    let reward_token_balance_of_contract =
-        get_balance_erc20_token(rewards_token, this_contract);
+    let reward_token_balance_of_contract = get_balance_erc20_token(rewards_token, this_contract);
     if reward_token_balance_of_contract < rewards_amount {
         transfer_erc20_token(rewards_token, user, reward_token_balance_of_contract);
         user_info_of_this_pool.pending_rewards =
@@ -797,16 +827,26 @@ fn get_multiplier(from: u64, to: u64) -> u64 {
     let multiplier = to - from;
     multiplier
 }
-fn update_pool(this_pool: &mut PoolInfo, rewards_token: Key, pool_id: u64) {
+fn update_pool(mut this_pool: PoolInfo, rewards_token: Key, pool_id: u64) -> PoolInfo {
+    // get Pool_info
+    // let pool_info_str: String =
+    //     helpers::get_dictionary_value_from_key(POOL_INFO, &pool_id.to_string()).unwrap();
+    // if casper_serde_json_wasm::from_str::<PoolInfo>(&pool_info_str).is_err() {
+    //     runtime::revert(Error::CanNotGetPoolList)
+    // }
+
+    // let mut this_pool = casper_serde_json_wasm::from_str::<PoolInfo>(&pool_info_str).unwrap();
+
     // get current block stamps
-    let current_block_timestamps = (current_block_timestamp() as u64);
+    let current_block_timestamps = current_block_timestamp() as u64;
 
     if current_block_timestamps <= this_pool.last_reward_second {
         runtime::revert(Error::InvalidContext);
     }
 
     // Todo: update pool
-    let multiplier: u128 = (get_multiplier(this_pool.last_reward_second, current_block_timestamps) as u128);
+    let multiplier: u128 =
+        (get_multiplier(this_pool.last_reward_second, current_block_timestamps) as u128);
     let total_alloc_point: u64 = helpers::get_stored_value_with_user_errors::<u64>(
         TOTAL_ALLOC_POINT,
         Error::MissingTotalAllocPoint,
@@ -820,8 +860,8 @@ fn update_pool(this_pool: &mut PoolInfo, rewards_token: Key, pool_id: u64) {
     let reward_per_second = reward_per_second_U256.as_u128();
 
     if total_alloc_point > 0 && this_pool.lp_supply != 0 {
-        let reward =
-            multiplier * reward_per_second * (this_pool.alloc_point as u128) / (total_alloc_point as u128);
+        let reward = multiplier * reward_per_second * (this_pool.alloc_point as u128)
+            / (total_alloc_point as u128);
         // Todo: transfer reward to this contract
 
         let contract_key: Key = get_self_key();
@@ -846,19 +886,19 @@ fn update_pool(this_pool: &mut PoolInfo, rewards_token: Key, pool_id: u64) {
             },
         );
         //update
-        let new_acc_reward_per_share = this_pool.acc_reward_per_share.clone()
-            + (reward * ACC_MULTIPLIER / this_pool.lp_supply);
+        this_pool.acc_reward_per_share = this_pool.acc_reward_per_share.clone()
+            + (reward * ACC_MULTIPLIER / this_pool.lp_supply.clone());
 
-        let new_this_pool = PoolInfo {
-            pool_id: pool_id.clone(),
-            lp_token: this_pool.lp_token,
-            alloc_point: this_pool.alloc_point,
-            last_reward_second: current_block_timestamps.clone(),
-            acc_reward_per_share: new_acc_reward_per_share,
-            //  min_stake_duration: this_pool.min_stake_duration,
-            //  early_withdraw_penalty_rate: this_pool.early_withdraw_penalty_rate,
-            lp_supply: this_pool.lp_supply,
-        };
+        //   let new_this_pool = &PoolInfo {
+        //     pool_id: pool_id.clone(),
+        //     lp_token: this_pool.lp_token,
+        //     alloc_point: this_pool.alloc_point,
+        //     last_reward_second: current_block_timestamps.clone(),
+        //     acc_reward_per_share: this_pool.acc_reward_per_share.clone(),
+        //     //  min_stake_duration: this_pool.min_stake_duration,
+        //     //  early_withdraw_penalty_rate: this_pool.early_withdraw_penalty_rate,
+        //     lp_supply: this_pool.lp_supply.clone(),
+        // };
 
         // save pool_info
 
@@ -866,9 +906,10 @@ fn update_pool(this_pool: &mut PoolInfo, rewards_token: Key, pool_id: u64) {
             POOL_INFO,
             &pool_id.to_string(),
             // this_pool,
-            casper_serde_json_wasm::to_string_pretty(&new_this_pool).unwrap(),
+            casper_serde_json_wasm::to_string(&this_pool).unwrap(),
         );
     }
+    this_pool
 }
 // // View function to see pending rewards of user
 // #[no_mangle]

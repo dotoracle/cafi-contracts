@@ -219,8 +219,8 @@ const Staking = class {
     let runtimeArgs = {};
     runtimeArgs = RuntimeArgs.fromMap({
       pool_id: CLValueBuilder.u64(poolId),
-      amount : CLValueBuilder.u256(amount),
-      stake_duration : CLValueBuilder.u256(stakeDuration),
+      amount : CLValueBuilder.u128(amount),
+      // stake_duration : CLValueBuilder.u256(stakeDuration),
     })
     console.log("sending");
     console.log(paymentAmount)
@@ -266,7 +266,7 @@ const Staking = class {
     let runtimeArgs = {};
     runtimeArgs = RuntimeArgs.fromMap({
       pool_id: CLValueBuilder.u64(poolId),
-      amount : CLValueBuilder.u256(amount),
+      amount : CLValueBuilder.u128(amount),
     })
     console.log("sending");
     console.log(paymentAmount)
