@@ -28,7 +28,7 @@ ${keytonyc}
 -----END PRIVATE KEY-----
 `; // tony key
 
-let stakingHash = "hash-4f91ba89ccdf46d39a173f280f8e5f2881ad37113d2e47496a8811c7d90a70e8"
+let stakingHash = "hash-c9a363519ce4865e08f055a0ffdbebb2fe5607b0079e1f93ad4fd52f882a6c5d"
 console.log("market-place: ", stakingHash)
 
 let lpContract =

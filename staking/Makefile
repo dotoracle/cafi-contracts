@@ -7,7 +7,7 @@ build-contract:
 
 test: build-contract
 	mkdir -p tests/wasm
-	cp nftbridge/target/wasm32-unknown-unknown/release/marketplace.wasm tests/wasm
+	cp contracts/target/wasm32-unknown-unknown/release/contract.wasm tests/wasm
 	cd tests && cargo test
 
 clippy:
