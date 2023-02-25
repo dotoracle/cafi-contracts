@@ -27,7 +27,7 @@ pub const MAX_SWAP_FEE: u128 = 100000000; // 10^8
 pub const MAX_ADMIN_FEE: u128 = 10000000000; // 10^10
 pub const MAX_LOOP_LIMIT: u64 = 256; 
 
-fn get_a_precise_internal(swap: &mut Swap) -> u128 {
+fn get_a_precise_internal(swap: &Swap) -> u128 {
     get_a_precise(swap)
 }
 
@@ -40,7 +40,7 @@ fn get_a_precise_internal(swap: &mut Swap) -> u128 {
 * @return the amount of token user will receive
 */
 pub fn calculate_withdraw_one_token(
-    swap: &mut Swap,
+    swap: &Swap,
     token_amount: u128,
     token_index: usize
 ) -> u128 {
@@ -59,7 +59,7 @@ pub fn calculate_withdraw_one_token(
 }
 
 fn _calculate_withdraw_one_token(
-    swap: &mut Swap,
+    swap: &Swap,
     token_amount: u128,
     token_index: usize,
     total_supply: u128
@@ -87,7 +87,7 @@ fn _calculate_withdraw_one_token(
 * @return the d and the new y after withdrawing one token
 */
 fn calculate_withdraw_one_token_dy(
-    swap: &mut Swap,
+    swap: &Swap,
     token_index: usize,
     token_amount: u128,
     total_supply: u128
@@ -264,11 +264,11 @@ fn _xp(
     return xp;
 }
 
-fn _xp2(swap: &mut Swap) -> Vec<u128> {
+fn _xp2(swap: &Swap) -> Vec<u128> {
     _xp(&swap.balances, &swap.token_precision_multipliers)
 }
 
-pub fn get_virtual_price(swap: &mut Swap) -> u128
+pub fn get_virtual_price(swap: &Swap) -> u128
 {
     let d = get_d(&_xp2(swap), get_a_precise_internal(swap));
     let supply : U256 = runtime::call_contract(
@@ -360,7 +360,7 @@ fn get_y(
     * @return dy the number of tokens the user will get
     */
 pub fn calculate_swap(
-    swap: &mut Swap,
+    swap: &Swap,
     token_index_from: usize,
     token_index_to: usize,
     dx: u128,
@@ -390,7 +390,7 @@ pub fn calculate_swap(
     * @return dyFee the associated fee
     */
 fn _calculate_swap(
-    swap: &mut Swap,
+    swap: &Swap,
     token_index_from: usize,
     token_index_to: usize,
     dx: u128,
@@ -472,7 +472,7 @@ fn _calculate_remove_liquidity(
     * deposit was false, total amount of lp token that will be burned
     */
 pub fn calculate_token_amount(
-    swap: &mut Swap,
+    swap: &Swap,
     amounts: &Vec<u128>,
     deposit: bool
 ) -> u128 {
@@ -506,7 +506,7 @@ pub fn calculate_token_amount(
     * @param index Index of the pooled token
     * @return admin balance in the token's precision
     */
-pub fn get_admin_balance(swap: &mut Swap, index: usize) -> u128
+pub fn get_admin_balance(swap: &Swap, index: usize) -> u128
 {
     require(index < swap.pooled_tokens.len(), Error::TokenIndexOutOfRange);
     let balance_of_contract = helpers::get_balance(swap.pooled_tokens[index], get_self_key());

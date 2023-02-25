@@ -32,6 +32,7 @@ use crate::owner::*;
 use alloc::{
     string::{String, ToString},
     vec::*,
+    boxed::Box
 };
 use casper_contract::{
     contract_api::{
@@ -41,7 +42,7 @@ use casper_contract::{
 };
 use casper_types::{
     contracts::NamedKeys, runtime_args, Key,
-    RuntimeArgs, U128
+    RuntimeArgs, U128, CLValue
 };
 
 #[no_mangle]
@@ -168,187 +169,244 @@ fn read_swap_storage() -> structs::Swap {
     casper_serde_json_wasm::from_str::<structs::Swap>(&str).unwrap()
 }
 
+fn save_swap_storage(swap: &structs::Swap) {
+    helpers::set_key(SWAP_STORAGE, casper_serde_json_wasm::to_string(swap).unwrap());
+}
+
 fn deadline_check(deadline: u64) {
     require(helpers::current_block_timestamp() <= deadline, Error::DeadlineNotMet);
 }
 
-pub fn get_a() -> u128 {
-    let mut swap = read_swap_storage();
-    ampl::get_a(&mut swap)
-}
-
-pub fn get_a_precise() -> u128 {
-    let mut swap = read_swap_storage();
-    ampl::get_a_precise(&mut swap)
-}
-
-pub fn get_token(index: usize) -> Key {
+#[no_mangle]
+pub extern "C" fn get_a() {
     let swap = read_swap_storage();
-    swap.pooled_tokens[index]
+    runtime::ret(CLValue::from_t(U128::from(ampl::get_a(&swap))).unwrap_or_revert());    
 }
 
-pub fn get_token_index(token: Key) -> u64 {
+#[no_mangle]
+pub extern "C" fn get_a_precise() {
+    let swap = read_swap_storage();
+    runtime::ret(CLValue::from_t(U128::from(ampl::get_a_precise(&swap))).unwrap_or_revert());    
+}
+
+#[no_mangle]
+pub extern "C" fn get_token() {
+    let index: u64 = runtime::get_named_arg(ARG_INDEX);
+    let swap = read_swap_storage();
+    let r = swap.pooled_tokens[index as usize];
+    runtime::ret(CLValue::from_t(r).unwrap_or_revert());    
+}
+
+#[no_mangle]
+pub extern "C" fn get_token_index() {
+    let token: Key = runtime::get_named_arg(ARG_TOKEN);
     let existing_index: Option<u64> = helpers::get_dictionary_value_from_key(TOKEN_INDEXES, &token.to_string());
-    existing_index.unwrap()
+    runtime::ret(CLValue::from_t(existing_index.unwrap()).unwrap_or_revert());    
 }
 
-pub fn get_token_balance(index: usize) -> u128 {
+#[no_mangle]
+pub extern  "C" fn get_token_balance() {
+    let index: u64 = runtime::get_named_arg(ARG_INDEX);
+    let index = index as usize;
     let swap = read_swap_storage();
     require(index < swap.pooled_tokens.len(), Error::TokenIndexOutOfRange);
-    swap.balances[index]
+    runtime::ret(CLValue::from_t(U128::from(swap.balances[index])).unwrap_or_revert());    
 }
 
-pub fn get_virtual_price() -> u128 {
-    let mut swap = read_swap_storage();
-    swap_processor::get_virtual_price(&mut swap)
+#[no_mangle]
+pub extern "C" fn get_virtual_price() {
+    let swap = read_swap_storage();
+    runtime::ret(CLValue::from_t(U128::from(swap_processor::get_virtual_price(&swap))).unwrap_or_revert());    
 }
 
-pub fn calculate_swap(token_index_from: usize, token_index_to: usize, dx: u128) -> u128 {
-    let mut swap = read_swap_storage();
-    swap_processor::calculate_swap(&mut swap, token_index_from, token_index_to, dx)
+#[no_mangle]
+pub extern "C" fn calculate_swap(token_index_to: usize, dx: u128) {
+    let token_index_from: u64 = runtime::get_named_arg(ARG_TOKEN_INDEX_FROM);
+    let token_index_to: u64 = runtime::get_named_arg(ARG_TOKEN_INDEX_TO);
+    let dx: U128 = runtime::get_named_arg(ARG_DX);
+
+    let swap = read_swap_storage();
+    let r = swap_processor::calculate_swap(&swap, token_index_from as usize, token_index_to as usize, dx.as_u128());
+    runtime::ret(CLValue::from_t(U128::from(r)).unwrap_or_revert());    
 }
 
-pub fn calculate_token_amount(amounts: Vec<u128>, deposit: bool) -> u128 {
-    let mut swap = read_swap_storage();
-    swap_processor::calculate_token_amount(&mut swap, &amounts, deposit)
+#[no_mangle]
+pub extern "C" fn calculate_token_amount() {
+    let amounts: Vec<U128> = runtime::get_named_arg(ARG_AMOUNTS);
+    let deposit: bool = runtime::get_named_arg(ARG_DEPOSIT);
+    let swap = read_swap_storage();
+    let r = swap_processor::calculate_token_amount(&swap, &amounts.into_iter().map(|x| x.as_u128()).collect(), deposit);
+    runtime::ret(CLValue::from_t(U128::from(r)).unwrap_or_revert());    
 }
 
-pub fn calculate_remove_liquidity(amount: u128) -> Vec<u128> {
-    let mut swap = read_swap_storage();
-    swap_processor::calculate_remove_liquidity(&mut swap, amount)
-}
-
-pub fn calculate_remove_liquidity_one_token(token_amount: u128, token_index: usize) -> u128 {
-    let mut swap = read_swap_storage();
-    swap_processor::calculate_withdraw_one_token(&mut swap, token_amount, token_index)
-}
-
-pub fn get_admin_balance(index: usize) -> u128 {
-    let mut swap = read_swap_storage();
-    swap_processor::get_admin_balance(&mut swap, index)
-}
-
-// function swap(
-//     uint8 tokenIndexFrom,
-//     uint8 tokenIndexTo,
-//     uint256 dx,
-//     uint256 minDy,
-//     uint256 deadline
-// )
-//     external
-//     payable
-//     virtual
-//     nonReentrant
-//     whenNotPaused
-//     deadlineCheck(deadline)
-//     returns (uint256)
-// {
-//     return swapStorage.swap(tokenIndexFrom, tokenIndexTo, dx, minDy);
+// #[no_mangle]
+// pub extern "C" fn calculate_remove_liquidity() {
+//     let amount: U128 = runtime::get_named_arg(ARG_AMOUNT);
+//     let mut swap = read_swap_storage();
+//     let ret = swap_processor::calculate_remove_liquidity(&mut swap, amount.as_u128());
+//     runtime::ret(CLValue::from_t(CLTyped::List(Box::from(&ret))));    
 // }
-pub fn swap(
-    token_index_from: usize,
-    token_index_to: usize,
-    dx: u128,
-    min_dy: u128,
-    deadline: u64
-) -> u128 {
+
+#[no_mangle]
+pub extern "C" fn calculate_remove_liquidity_one_token() {
+    let token_amount: U128 = runtime::get_named_arg(ARG_TOKEN_AMOUNT);
+    let token_index: u64 = runtime::get_named_arg(ARG_TOKEN_INDEX);
+    let swap = read_swap_storage();
+    let r = swap_processor::calculate_withdraw_one_token(&swap, token_amount.as_u128(), token_index as usize);
+    runtime::ret(CLValue::from_t(U128::from(r)).unwrap_or_revert());    
+}
+
+#[no_mangle]
+pub extern "C" fn get_admin_balance() {
+    let index: u64 = runtime::get_named_arg(ARG_TOKEN_INDEX);
+    let swap = read_swap_storage();
+    let r = swap_processor::get_admin_balance(&swap, index as usize);
+    runtime::ret(CLValue::from_t(U128::from(r)).unwrap_or_revert());    
+}
+
+#[no_mangle]
+pub extern "C" fn swap() -> Result<(), Error> {
     when_not_locked();
     when_not_paused();
-    deadline_check(deadline);
     lock_contract();
+
+    let token_index_from: u64 = runtime::get_named_arg(ARG_TOKEN_INDEX_FROM);
+    let token_index_to: u64 = runtime::get_named_arg(ARG_TOKEN_INDEX_TO);
+    let dx: U128 = runtime::get_named_arg(ARG_DX);
+    let min_dy: U128 = runtime::get_named_arg(ARG_MIN_DY);
+    let deadline: u64 = runtime::get_named_arg(ARG_DEADLINE);
+    deadline_check(deadline);
+
     let mut swap = read_swap_storage();
-    let ret = swap_processor::swap(&mut swap, token_index_from, token_index_to, dx, min_dy);
+    let ret = swap_processor::swap(&mut swap, token_index_from as usize, token_index_to as usize, dx.as_u128(), min_dy.as_u128());
     unlock_contract();
-    ret
+    save_swap_storage(&swap);
+    Ok(())
 }
 
-pub fn add_liquidity(
-    amounts: Vec<u128>,
-    min_to_mint: u128,
-    deadline: u64
-) -> u128 {
+#[no_mangle]
+pub extern "C" fn add_liquidity() -> Result<(), Error> {
     when_not_locked();
     when_not_paused();
-    deadline_check(deadline);
     lock_contract();    
+    let amounts: Vec<U128> = runtime::get_named_arg(ARG_AMOUNTS);
+    let min_to_mint: U128 = runtime::get_named_arg(ARG_MIN_TO_MINT);
+    let deadline: u64 = runtime::get_named_arg(ARG_DEADLINE);
+    deadline_check(deadline);
+
     let mut swap = read_swap_storage();
-    let ret = swap_processor::add_liquidity(&mut swap, amounts, min_to_mint);
+    let ret = swap_processor::add_liquidity(&mut swap, amounts.into_iter().map(|x| x.as_u128()).collect(), min_to_mint.as_u128());
     unlock_contract();
-    ret
+    save_swap_storage(&swap);
+    Ok(())
 }
 
-pub fn remove_liquidity(
+#[no_mangle]
+pub extern "C" fn remove_liquidity(
     amount: u128,
     min_amounts: Vec<u128>,
     deadline: u64
-) -> Vec<u128> {
+) -> Result<(), Error> {
     when_not_locked();
     when_not_paused();
-    deadline_check(deadline);
     lock_contract();
+
+    let amount: U128 = runtime::get_named_arg(ARG_AMOUNT);
+    let min_amounts: Vec<U128> = runtime::get_named_arg(ARG_MIN_AMOUNTS);
+    let deadline: u64 = runtime::get_named_arg(ARG_DEADLINE);
+    deadline_check(deadline);
+
     let mut swap = read_swap_storage();
-    let ret = swap_processor::remove_liquidity(&mut swap, amount, min_amounts);
+    let ret = swap_processor::remove_liquidity(&mut swap, amount.as_u128(), min_amounts.into_iter().map(|x| x.as_u128()).collect());
     unlock_contract();
-    ret
+    save_swap_storage(&swap);
+    Ok(())
 }
 
-pub fn remove_liquidity_one_token(
+#[no_mangle]
+pub extern "C" fn remove_liquidity_one_token(
     token_amount: u128,
     token_index: usize,
     min_amount: u128,
     deadline: u64
-) -> u128 {
+) -> Result<(), Error> {
     when_not_locked();
     when_not_paused();
-    deadline_check(deadline);
     lock_contract();
+
+    let token_amount: U128 = runtime::get_named_arg(ARG_TOKEN_AMOUNT);
+    let token_index: u64 = runtime::get_named_arg(ARG_TOKEN_INDEX);
+    let min_amount: U128 = runtime::get_named_arg(ARG_MIN_AMOUNT);
+    let deadline: u64 = runtime::get_named_arg(ARG_DEADLINE);
+
+    deadline_check(deadline);
+
     let mut swap = read_swap_storage();
-    let ret = swap_processor::remove_liquidity_one_token(&mut swap, token_amount, token_index, min_amount);
+    let ret = swap_processor::remove_liquidity_one_token(&mut swap, token_amount.as_u128(), token_index as usize, min_amount.as_u128());
     unlock_contract();
-    ret
+    save_swap_storage(&swap);
+    Ok(())
 }
 
-pub fn remove_liquidity_imbalance(
-    amounts: Vec<u128>,
-    max_burn_amount: u128,
-    deadline: u64
-) -> u128 {
+#[no_mangle]
+pub extern "C" fn remove_liquidity_imbalance() -> Result<(), Error> {
     when_not_locked();
     when_not_paused();
-    deadline_check(deadline);
     lock_contract();
+
+    let amounts: Vec<U128> = runtime::get_named_arg(ARG_AMOUNTS);
+    let max_burn_amount: U128 = runtime::get_named_arg(ARG_MAX_BURN_AMOUNT);
+    let deadline: u64 = runtime::get_named_arg(ARG_DEADLINE);
+
+    deadline_check(deadline);
+
     let mut swap = read_swap_storage();
-    let ret = swap_processor::remove_liquidity_imbalance(&mut swap, amounts, max_burn_amount);
+    let ret = swap_processor::remove_liquidity_imbalance(&mut swap, amounts.into_iter().map(|x| x.as_u128()).collect(), max_burn_amount.as_u128());
     unlock_contract();
-    ret
+    save_swap_storage(&swap);
+    Ok(())
 }
 
-pub fn withdraw_admin_fees() {
+#[no_mangle]
+pub extern "C" fn withdraw_admin_fees() -> Result<(), Error> {
     only_owner();
     let mut swap = read_swap_storage();
-    swap_processor::withdraw_admin_fees(&mut swap, owner());
+    swap_processor::withdraw_admin_fees(&mut swap, owner_internal());
+    Ok(())
 }
 
-pub fn set_admin_fee(new_fee: u64) {
+#[no_mangle]
+pub extern "C" fn set_admin_fee() -> Result<(), Error> {
     only_owner();
+    let new_fee: u64 = runtime::get_named_arg(ARG_ADMIN_FEE);
     let mut swap = read_swap_storage();
     swap_processor::set_admin_fee(&mut swap, new_fee);
+    Ok(())
 }
 
-pub fn set_swap_fee(new_fee: u64) {
+#[no_mangle]
+pub extern "C" fn set_swap_fee() -> Result<(), Error> {
     only_owner();
+    let new_fee: u64 = runtime::get_named_arg(ARG_SWAP_FEE);
     let mut swap = read_swap_storage();
     swap_processor::set_swap_fee(&mut swap, new_fee);
+    Ok(())
 }
 
-pub fn ramp_a(future_a: u128, future_time: u64) {
+#[no_mangle]
+pub extern "C" fn ramp_a(future_a: u128, future_time: u64) -> Result<(), Error> {
     only_owner();
+    let future_a: U128 = runtime::get_named_arg(ARG_FUTURE_A);
+    let future_time: u64 = runtime::get_named_arg(ARG_FUTURE_TIME);
     let mut swap = read_swap_storage();
-    ampl::ramp_a(&mut swap, future_a, future_time);
+    ampl::ramp_a(&mut swap, future_a.as_u128(), future_time);
+    Ok(())
 }
 
-pub fn stop_ramp_a() {
+#[no_mangle]
+pub extern "C" fn stop_ramp_a() -> Result<(), Error> {
     only_owner();
     let mut swap = read_swap_storage();
     ampl::stop_ramp_a(&mut swap);
+    Ok(())
 }

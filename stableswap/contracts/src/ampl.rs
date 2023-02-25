@@ -8,15 +8,15 @@ pub const MIN_RAMP_TIME: u64 = 86400 * 14;
 use crate::structs::Swap;
 use crate::helpers::{current_block_timestamp, require};
 use crate::error::Error;
-pub fn get_a(swap: &mut Swap) -> u128 {
+pub fn get_a(swap: &Swap) -> u128 {
     _get_a_precise(swap) / A_PRECISION
 }
 
-pub fn get_a_precise(swap: &mut Swap) -> u128 {
+pub fn get_a_precise(swap: &Swap) -> u128 {
     _get_a_precise(swap)
 }
 
-fn _get_a_precise(swap: &mut Swap) -> u128 {
+fn _get_a_precise(swap: &Swap) -> u128 {
     let t1 = swap.future_a_time;
     let a1 = swap.future_a;
     let timestamp = current_block_timestamp();
