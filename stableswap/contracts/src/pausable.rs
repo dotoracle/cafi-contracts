@@ -2,7 +2,7 @@ use crate::helpers::{self, *};
 use crate::constants::*;
 use crate::owner::*;
 use crate::error::Error;
-use casper_contract::{contract_api::runtime, unwrap_or_revert::UnwrapOrRevert};
+use casper_contract::{contract_api::{ runtime, storage }, unwrap_or_revert::UnwrapOrRevert};
 use alloc::{string::String, vec, vec::*};
 use casper_types::{
     EntryPoint, EntryPointAccess, EntryPointType, CLType, Parameter, CLValue
@@ -12,7 +12,7 @@ pub extern "C" fn get_paused() {
     runtime::ret(CLValue::from_t(get_paused_internal()).unwrap_or_revert());    
 }
 
-pub(crate) fn get_paused_internal() -> bool {
+pub fn get_paused_internal() -> bool {
     let paused: bool = helpers::get_key(PAUSED).unwrap();
     paused
 }
@@ -25,8 +25,15 @@ pub extern "C" fn set_paused() -> Result<(), Error> {
     Ok(())
 }
 
-pub(crate) fn when_not_paused() {
+pub fn when_not_paused() {
     require(!get_paused_internal(), Error::ContractPaused);
+}
+
+pub fn init() {
+    runtime::put_key(
+        PAUSED,
+        storage::new_uref(false).into(),
+    );
 }
 
 pub fn entry_points() -> Vec<EntryPoint> {

@@ -1,16 +1,24 @@
 use crate::helpers::{self, *};
 use crate::constants::*;
 use crate::error::Error;
+use casper_contract::contract_api::{runtime, storage};
 
-pub(crate) fn when_not_locked() {
+pub fn when_not_locked() {
     let locked: bool = helpers::get_key(IS_LOCKED).unwrap();
     require(!locked, Error::ContractLocked);
 }
 
-pub(crate) fn lock_contract() {
+pub fn lock_contract() {
     helpers::set_key(IS_LOCKED, true);
 }
 
-pub(crate) fn unlock_contract() {
+pub fn unlock_contract() {
     helpers::set_key(IS_LOCKED, false);
+}
+
+pub fn init() {
+    runtime::put_key(
+        IS_LOCKED,
+        storage::new_uref(false).into(),
+    );
 }

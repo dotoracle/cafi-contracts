@@ -20,8 +20,7 @@ mod math_utils;
 mod lock;
 mod pausable;
 mod owner;
-
-use serde::{Deserialize, Serialize};
+mod erc20_helpers;
 
 use crate::constants::*;
 use crate::error::Error;
@@ -32,7 +31,7 @@ use crate::owner::*;
 use alloc::{
     string::{String, ToString},
     vec::*,
-    boxed::Box
+    vec
 };
 use casper_contract::{
     contract_api::{
@@ -47,7 +46,7 @@ use casper_types::{
 
 #[no_mangle]
 pub extern "C" fn init() {
-    if get_key::<Key>(ARG_LP_TOKEN).is_some() {
+    if get_key::<String>(SWAP_STORAGE).is_some() {
         runtime::revert(Error::ContractAlreadyInitialized);
     }
     let pooled_tokens: Vec<Key> = runtime::get_named_arg(ARG_POOLED_TOKENS);
@@ -62,11 +61,15 @@ pub extern "C" fn init() {
     require(pooled_tokens.len() > 1 && pooled_tokens.len() <= 32, Error::PooledTokensLength);
     require(pooled_tokens.len() == decimals.len(), Error::PooledTokensDecimalsMismatch);
 
-    let mut precision_multipliers: Vec<u128> = Vec::with_capacity(decimals.len());
+    storage::new_dictionary(TOKEN_INDEXES)
+        .unwrap_or_revert_with(Error::FailedToCreateDictionary);
+        
+    let mut precision_multipliers: Vec<u128> = vec![0; decimals.len()];
     for i in 0..pooled_tokens.len() {
+        let k_str = hex::encode(pooled_tokens[i].into_hash().unwrap());
         if i > 0 {
             // Check if index is already used. Check if 0th element is a duplicate.
-            let existing_index: Option<u64> = helpers::get_dictionary_value_from_key(TOKEN_INDEXES, &pooled_tokens[i].to_string());
+            let existing_index: Option<u64> = helpers::get_dictionary_value_from_key(TOKEN_INDEXES, &k_str);
             require(
                 existing_index.is_none() &&
                 pooled_tokens[0] != pooled_tokens[i],
@@ -79,25 +82,15 @@ pub extern "C" fn init() {
             Error::TokenDecimalsExceedMax
         );
         precision_multipliers[i] = 10u128.pow((swap_processor::POOL_PRECISION_DECIMALS - decimals[i]) as u32);
-        helpers::write_dictionary_value_from_key(TOKEN_INDEXES, &pooled_tokens[i].to_string(), i as u64);
+        helpers::write_dictionary_value_from_key(TOKEN_INDEXES, &k_str, i as u64);
     }
 
     require(a < ampl::MAX_A && fee < swap_processor::MAX_SWAP_FEE as u64 && admin_fee < swap_processor::MAX_ADMIN_FEE as u64, Error::InvalidInitializedParams);
+    
+    owner::init(contract_owner);
+    pausable::init();
 
-    runtime::put_key(
-        CONTRACT_OWNER_KEY_NAME,
-        storage::new_uref(contract_owner).into(),
-    );
-
-    runtime::put_key(
-        PAUSED,
-        storage::new_uref(false).into(),
-    );
-
-    runtime::put_key(
-        IS_LOCKED,
-        storage::new_uref(false).into(),
-    );
+    lock::init();
 
     let swap_storage = structs::Swap {
         initial_a: a * ampl::A_PRECISION,
@@ -109,14 +102,12 @@ pub extern "C" fn init() {
         lp_token: lp_token,
         pooled_tokens: pooled_tokens.clone(),
         token_precision_multipliers: precision_multipliers,
-        balances: Vec::with_capacity(pooled_tokens.len())
+        balances: vec![0; pooled_tokens.len()]
     };
     runtime::put_key(
         SWAP_STORAGE,
         storage::new_uref(casper_serde_json_wasm::to_string(&swap_storage).unwrap()).into(),
     );
-    storage::new_dictionary(TOKEN_INDEXES)
-        .unwrap_or_revert_with(Error::FailedToCreateDictionary);
 }
 
 #[no_mangle]
@@ -126,7 +117,12 @@ fn call() {
     let contract_package_hash_key_name = String::from(contract_name.clone() + "_package_name");
 
     let pooled_tokens: Vec<Key> = runtime::get_named_arg(ARG_POOLED_TOKENS);
-    let decimals: Vec<u8> = runtime::get_named_arg(ARG_TOKEN_DECIMALS);
+    let mut decimals: Vec<u8> = vec![0; pooled_tokens.len()]; 
+    // reading decimals
+    for i in 0..pooled_tokens.len() {
+        decimals[i] = erc20_helpers::get_decimals(pooled_tokens[i]);
+    }
+
     let lp_token: Key = runtime::get_named_arg(ARG_LP_TOKEN);
     let a: U128 = runtime::get_named_arg(ARG_A);
     let fee: u64 = runtime::get_named_arg(ARG_FEE);
@@ -200,7 +196,7 @@ pub extern "C" fn get_token() {
 #[no_mangle]
 pub extern "C" fn get_token_index() {
     let token: Key = runtime::get_named_arg(ARG_TOKEN);
-    let existing_index: Option<u64> = helpers::get_dictionary_value_from_key(TOKEN_INDEXES, &token.to_string());
+    let existing_index: Option<u64> = helpers::get_dictionary_value_from_key(TOKEN_INDEXES, &hex::encode(token.into_hash().unwrap()));
     runtime::ret(CLValue::from_t(existing_index.unwrap()).unwrap_or_revert());    
 }
 
@@ -220,7 +216,7 @@ pub extern "C" fn get_virtual_price() {
 }
 
 #[no_mangle]
-pub extern "C" fn calculate_swap(token_index_to: usize, dx: u128) {
+pub extern "C" fn calculate_swap() {
     let token_index_from: u64 = runtime::get_named_arg(ARG_TOKEN_INDEX_FROM);
     let token_index_to: u64 = runtime::get_named_arg(ARG_TOKEN_INDEX_TO);
     let dx: U128 = runtime::get_named_arg(ARG_DX);
@@ -265,6 +261,16 @@ pub extern "C" fn get_admin_balance() {
 }
 
 #[no_mangle]
+pub extern "C" fn update_lp() -> Result<(), Error> {
+    only_owner();
+    let lp_token: Key = runtime::get_named_arg(ARG_LP_TOKEN);
+    let mut swap = read_swap_storage();
+    swap.lp_token = lp_token;
+    save_swap_storage(&swap);
+    Ok(()) 
+}
+
+#[no_mangle]
 pub extern "C" fn swap() -> Result<(), Error> {
     when_not_locked();
     when_not_paused();
@@ -278,7 +284,7 @@ pub extern "C" fn swap() -> Result<(), Error> {
     deadline_check(deadline);
 
     let mut swap = read_swap_storage();
-    let ret = swap_processor::swap(&mut swap, token_index_from as usize, token_index_to as usize, dx.as_u128(), min_dy.as_u128());
+    swap_processor::swap(&mut swap, token_index_from as usize, token_index_to as usize, dx.as_u128(), min_dy.as_u128());
     unlock_contract();
     save_swap_storage(&swap);
     Ok(())
@@ -295,18 +301,14 @@ pub extern "C" fn add_liquidity() -> Result<(), Error> {
     deadline_check(deadline);
 
     let mut swap = read_swap_storage();
-    let ret = swap_processor::add_liquidity(&mut swap, amounts.into_iter().map(|x| x.as_u128()).collect(), min_to_mint.as_u128());
+    swap_processor::add_liquidity(&mut swap, amounts.into_iter().map(|x| x.as_u128()).collect(), min_to_mint.as_u128());
     unlock_contract();
     save_swap_storage(&swap);
     Ok(())
 }
 
 #[no_mangle]
-pub extern "C" fn remove_liquidity(
-    amount: u128,
-    min_amounts: Vec<u128>,
-    deadline: u64
-) -> Result<(), Error> {
+pub extern "C" fn remove_liquidity() -> Result<(), Error> {
     when_not_locked();
     when_not_paused();
     lock_contract();
@@ -317,19 +319,14 @@ pub extern "C" fn remove_liquidity(
     deadline_check(deadline);
 
     let mut swap = read_swap_storage();
-    let ret = swap_processor::remove_liquidity(&mut swap, amount.as_u128(), min_amounts.into_iter().map(|x| x.as_u128()).collect());
+    swap_processor::remove_liquidity(&mut swap, amount.as_u128(), min_amounts.into_iter().map(|x| x.as_u128()).collect());
     unlock_contract();
     save_swap_storage(&swap);
     Ok(())
 }
 
 #[no_mangle]
-pub extern "C" fn remove_liquidity_one_token(
-    token_amount: u128,
-    token_index: usize,
-    min_amount: u128,
-    deadline: u64
-) -> Result<(), Error> {
+pub extern "C" fn remove_liquidity_one_token() -> Result<(), Error> {
     when_not_locked();
     when_not_paused();
     lock_contract();
@@ -342,7 +339,7 @@ pub extern "C" fn remove_liquidity_one_token(
     deadline_check(deadline);
 
     let mut swap = read_swap_storage();
-    let ret = swap_processor::remove_liquidity_one_token(&mut swap, token_amount.as_u128(), token_index as usize, min_amount.as_u128());
+    swap_processor::remove_liquidity_one_token(&mut swap, token_amount.as_u128(), token_index as usize, min_amount.as_u128());
     unlock_contract();
     save_swap_storage(&swap);
     Ok(())
@@ -361,7 +358,7 @@ pub extern "C" fn remove_liquidity_imbalance() -> Result<(), Error> {
     deadline_check(deadline);
 
     let mut swap = read_swap_storage();
-    let ret = swap_processor::remove_liquidity_imbalance(&mut swap, amounts.into_iter().map(|x| x.as_u128()).collect(), max_burn_amount.as_u128());
+    swap_processor::remove_liquidity_imbalance(&mut swap, amounts.into_iter().map(|x| x.as_u128()).collect(), max_burn_amount.as_u128());
     unlock_contract();
     save_swap_storage(&swap);
     Ok(())
@@ -394,7 +391,7 @@ pub extern "C" fn set_swap_fee() -> Result<(), Error> {
 }
 
 #[no_mangle]
-pub extern "C" fn ramp_a(future_a: u128, future_time: u64) -> Result<(), Error> {
+pub extern "C" fn ramp_a() -> Result<(), Error> {
     only_owner();
     let future_a: U128 = runtime::get_named_arg(ARG_FUTURE_A);
     let future_time: u64 = runtime::get_named_arg(ARG_FUTURE_TIME);

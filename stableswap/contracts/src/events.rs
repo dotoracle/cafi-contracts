@@ -13,7 +13,6 @@ use alloc::{
 
 use casper_contract::contract_api::{storage};
 use casper_types::{ContractPackageHash, Key, URef};
-use serde::{Deserialize, Serialize};
 
 use crate::helpers::*;
 

@@ -20,6 +20,7 @@ use crate::error::Error;
 
 use crate::math_utils;
 use crate::structs::*;
+use crate::erc20_helpers;
 
 pub const POOL_PRECISION_DECIMALS: u8 = 18;
 pub const FEE_DENOMINATOR: u128 = 10000000000; // 10^10
@@ -491,7 +492,7 @@ pub fn calculate_token_amount(
     }
     let d1 = get_d(&_xp(&balances, &multipliers), a);
 
-    let total_supply = helpers::get_total_supply(swap.lp_token);
+    let total_supply = erc20_helpers::get_total_supply(swap.lp_token);
 
     if deposit {
         return (d1 -d0) * (total_supply) / (d0);
@@ -509,7 +510,7 @@ pub fn calculate_token_amount(
 pub fn get_admin_balance(swap: &Swap, index: usize) -> u128
 {
     require(index < swap.pooled_tokens.len(), Error::TokenIndexOutOfRange);
-    let balance_of_contract = helpers::get_balance(swap.pooled_tokens[index], get_self_key());
+    let balance_of_contract = erc20_helpers::get_balance(swap.pooled_tokens[index], get_self_key());
     balance_of_contract - swap.balances[index]
 }
 
@@ -533,25 +534,17 @@ pub fn swap(
 ) -> u128 {
     let dx;
     {
-        let balance_of_from = helpers::get_balance(swap.pooled_tokens[token_index_from].clone(), helpers::get_immediate_caller_key());
+        let balance_of_from = erc20_helpers::get_balance(swap.pooled_tokens[token_index_from].clone(), helpers::get_immediate_caller_key());
         require(
             dx_ <= balance_of_from,
             Error::CannotSwapMoreThanYouHave
         );
         // Transfer tokens first to see if a fee was charged on transfer
-        let before_balance = helpers::get_balance(swap.pooled_tokens[token_index_from].clone(), helpers::get_self_key());
+        let before_balance = erc20_helpers::get_balance(swap.pooled_tokens[token_index_from].clone(), helpers::get_self_key());
         
-        let _: () = runtime::call_contract(
-            ContractHash::new(swap.pooled_tokens[token_index_from].into_hash().unwrap()),
-            "transfer_from",
-            runtime_args! {
-                "owner" => helpers::get_immediate_caller_key(),
-                "recipient" => helpers::get_self_key(),
-                "amount" => U256::from(dx_)
-            }
-        );
+        erc20_helpers::transfer_from(swap.pooled_tokens[token_index_from], helpers::get_immediate_caller_key(), helpers::get_self_key(), dx_);
 
-        let after_balance = helpers::get_balance(swap.pooled_tokens[token_index_from].clone(), helpers::get_self_key());
+        let after_balance = erc20_helpers::get_balance(swap.pooled_tokens[token_index_from].clone(), helpers::get_self_key());
 
         // Use the actual transferred amount for AMM math
         dx = after_balance - before_balance;
@@ -572,15 +565,8 @@ pub fn swap(
 
     swap.balances[token_index_from] = swap.balances[token_index_from] + dx;
     swap.balances[token_index_to] = swap.balances[token_index_to] - dy - dy_admin_fee;
-
-    let _: () = runtime::call_contract(
-        ContractHash::new(swap.pooled_tokens[token_index_to].into_hash().unwrap()),
-        "transfer",
-        runtime_args! {
-            "recipient" => helpers::get_immediate_caller_key(),
-            "amount" => U256::from(dy)
-        }
-    );
+    
+    erc20_helpers::transfer(swap.pooled_tokens[token_index_to], helpers::get_immediate_caller_key(), dy);
 
     events::emit(&CAFIDexEvent::TokenSwap {
         buyer: helpers::get_immediate_caller_key(),
@@ -615,13 +601,13 @@ pub fn add_liquidity(
         balances: swap.balances.clone(),
         multipliers: swap.token_precision_multipliers.clone()
     };
-    v.total_supply = helpers::get_total_supply(v.lp_token);
+    v.total_supply = erc20_helpers::get_total_supply(v.lp_token);
 
     if v.total_supply != 0 {
         v.d0 = get_d(&_xp(&v.balances, &v.multipliers), v.precise_a);
     }
 
-    let mut new_balances: Vec<u128> = Vec::with_capacity(pooled_tokens.len());
+    let mut new_balances: Vec<u128> = vec![0; pooled_tokens.len()];
 
     for i in 0..pooled_tokens.len() {
         require(
@@ -631,20 +617,10 @@ pub fn add_liquidity(
 
         // Transfer tokens first to see if a fee was charged on transfer
         if amounts[i] != 0 {
-            let before_balance = helpers::get_balance(pooled_tokens[i].clone(), get_self_key());
-
-            let _: () = runtime::call_contract(
-                ContractHash::new(pooled_tokens[i].into_hash().unwrap()),
-                "transfer_from",
-                runtime_args! {
-                    "owner" => helpers::get_immediate_caller_key(),
-                    "recipient" => helpers::get_self_key(),
-                    "amount" => U256::from(amounts[i])
-                }
-            );
-
+            let before_balance = erc20_helpers::get_balance(pooled_tokens[i].clone(), get_self_key());
+            erc20_helpers::transfer_from(pooled_tokens[i], helpers::get_immediate_caller_key(), helpers::get_self_key(), amounts[i]);
             // Update the amounts[] with actual transfer amount
-            amounts[i] = helpers::get_balance(pooled_tokens[i].clone(), get_self_key()) - before_balance;
+            amounts[i] = erc20_helpers::get_balance(pooled_tokens[i].clone(), get_self_key()) - before_balance;
         }
 
         new_balances[i] = v.balances[i] + amounts[i];
@@ -656,7 +632,7 @@ pub fn add_liquidity(
 
     // updated to reflect fees and calculate the user's LP tokens
     v.d2 = v.d1;
-    let mut fees: Vec<u128> = Vec::with_capacity(pooled_tokens.len());
+    let mut fees: Vec<u128> = vec![0; pooled_tokens.len()];
 
     if v.total_supply != 0 {
         let fee_per_token = _fee_per_token(
@@ -711,14 +687,14 @@ pub fn remove_liquidity(
 ) -> Vec<u128> {
     let lp_token = swap.lp_token;
     let pooled_tokens = swap.pooled_tokens.clone();
-    require(amount <= helpers::get_balance(lp_token.clone(), helpers::get_immediate_caller_key()), Error::GreaterLPBalanceOf);
+    require(amount <= erc20_helpers::get_balance(lp_token.clone(), helpers::get_immediate_caller_key()), Error::GreaterLPBalanceOf);
     require(
         min_amounts.len() == pooled_tokens.len(),
         Error::MinAmounsMustMatchPooledTokens
     );
 
     let balances = swap.balances.clone();
-    let total_supply = helpers::get_total_supply(lp_token.clone());
+    let total_supply = erc20_helpers::get_total_supply(lp_token.clone());
 
     let amounts = _calculate_remove_liquidity(
         &balances,
@@ -729,14 +705,8 @@ pub fn remove_liquidity(
     for i in 0..amounts.len() {
         require(amounts[i] >= min_amounts[i], Error::MinAmountsTooHigh);
         swap.balances[i] = balances[i] - amounts[i];
-        let _: () = runtime::call_contract(
-            ContractHash::new(pooled_tokens[i].into_hash().unwrap()),
-            "transfer",
-            runtime_args! {
-                "recipient" => helpers::get_immediate_caller_key(),
-                "amount" => U256::from(amounts[i])
-            }
-        );
+
+        erc20_helpers::transfer(pooled_tokens[i], helpers::get_immediate_caller_key(), amounts[i]);
     }
 
     let _: () = runtime::call_contract(
@@ -766,10 +736,10 @@ pub fn remove_liquidity_one_token(
     let lp_token = swap.lp_token.clone();
     let pooled_tokens = swap.pooled_tokens.clone();
 
-    require(token_amount <= helpers::get_balance(lp_token.clone(), helpers::get_immediate_caller_key()), Error::GreaterLPBalanceOf);
+    require(token_amount <= erc20_helpers::get_balance(lp_token.clone(), helpers::get_immediate_caller_key()), Error::GreaterLPBalanceOf);
     require(token_index < pooled_tokens.len(), Error::TokenNotFound);
 
-    let total_supply = helpers::get_total_supply(lp_token.clone());
+    let total_supply = erc20_helpers::get_total_supply(lp_token.clone());
 
     let (dy, dy_fee) = _calculate_withdraw_one_token(
         swap,
@@ -789,14 +759,8 @@ pub fn remove_liquidity_one_token(
             "amount" => U256::from(token_amount)
         }
     );
-    let _: () = runtime::call_contract(
-        ContractHash::new(pooled_tokens[token_index].into_hash().unwrap()),
-        "transfer",
-        runtime_args! {
-            "recipient" => helpers::get_immediate_caller_key(),
-            "amount" => U256::from(dy)
-        }
-    );
+
+    erc20_helpers::transfer(pooled_tokens[token_index], helpers::get_immediate_caller_key(), dy);
 
     events::emit(&CAFIDexEvent::RemoveLiquidityOne {
         provider: helpers::get_immediate_caller_key(),
@@ -824,7 +788,7 @@ pub fn remove_liquidity_imbalance(
         balances: swap.balances.clone(),
         multipliers: swap.token_precision_multipliers.clone()
     };
-    v.total_supply = helpers::get_total_supply(v.lp_token.clone());
+    v.total_supply = erc20_helpers::get_total_supply(v.lp_token.clone());
 
     let pooled_tokens = swap.pooled_tokens.clone();
 
@@ -834,15 +798,15 @@ pub fn remove_liquidity_imbalance(
     );
 
     require(
-        max_burn_amount <= helpers::get_balance(v.lp_token.clone(), helpers::get_immediate_caller_key()) &&
+        max_burn_amount <= erc20_helpers::get_balance(v.lp_token.clone(), helpers::get_immediate_caller_key()) &&
         max_burn_amount != 0,
         Error::GreaterLPBalanceOf
     );
 
     let fee_per_token = _fee_per_token(swap.swap_fee as u128, pooled_tokens.len() as u128);
-    let mut fees: Vec<u128> = Vec::with_capacity(pooled_tokens.len());
+    let mut fees: Vec<u128> = vec![0; pooled_tokens.len()];
     {
-        let mut balances1: Vec<u128> = Vec::with_capacity(pooled_tokens.len());
+        let mut balances1: Vec<u128> = vec![0; pooled_tokens.len()];
         v.d0 = get_d(&_xp(&v.balances, &v.multipliers), v.precise_a);
         for i in 0..pooled_tokens.len() {
             require(balances1[i] >= amounts[i], Error::GreaterLPBalanceOf);
@@ -876,14 +840,7 @@ pub fn remove_liquidity_imbalance(
     );
 
     for i in 0..pooled_tokens.len() {
-        let _: () = runtime::call_contract(
-            ContractHash::new(pooled_tokens[i].into_hash().unwrap()),
-            "transfer",
-            runtime_args! {
-                "recipient" => helpers::get_immediate_caller_key(),
-                "amount" => U256::from(amounts[i])
-            }
-        );
+        erc20_helpers::transfer(pooled_tokens[i], helpers::get_immediate_caller_key(), amounts[i]);
     }
 
     events::emit(&CAFIDexEvent::RemoveLiquidityImbalance {
@@ -901,16 +858,9 @@ pub fn withdraw_admin_fees(swap: &mut Swap, to: Key) {
     let pooled_tokens = swap.pooled_tokens.clone();
     for i in 0..pooled_tokens.len() {
         let token = pooled_tokens[i].clone();
-        let balance = helpers::get_balance(token.clone(), helpers::get_self_key()) - swap.balances[i];
+        let balance = erc20_helpers::get_balance(token.clone(), helpers::get_self_key()) - swap.balances[i];
         if balance != 0 {
-            let _: () = runtime::call_contract(
-                ContractHash::new(token.into_hash().unwrap()),
-                "transfer",
-                runtime_args! {
-                    "recipient" => to,
-                    "amount" => U256::from(balance)
-                }
-            );
+            erc20_helpers::transfer(token, to, balance);
         }
     }
 }

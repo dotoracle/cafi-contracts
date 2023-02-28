@@ -3,7 +3,7 @@ use alloc::{boxed::Box, string::String, vec, vec::Vec};
 use crate::constants::*;
 
 use casper_types::{
-    CLType, CLTyped, EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, Parameter, U256,
+    CLType, EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, Parameter,
 };
 
 use crate::owner;
@@ -367,6 +367,18 @@ pub(crate) fn default() -> EntryPoints {
         EntryPoint::new(
             String::from("stop_ramp_a"),
             vec![],
+            CLType::Unit,
+            EntryPointAccess::Public,
+            EntryPointType::Contract,
+        )
+    );
+
+    entry_points.add_entry_point(
+        EntryPoint::new(
+            String::from("update_lp"),
+            vec![
+                Parameter::new(ARG_LP_TOKEN, CLType::Key)
+            ],
             CLType::Unit,
             EntryPointAccess::Public,
             EntryPointType::Contract,
