@@ -369,6 +369,7 @@ pub extern "C" fn withdraw_admin_fees() -> Result<(), Error> {
     only_owner();
     let mut swap = read_swap_storage();
     swap_processor::withdraw_admin_fees(&mut swap, owner_internal());
+    save_swap_storage(&swap);
     Ok(())
 }
 
@@ -378,6 +379,7 @@ pub extern "C" fn set_admin_fee() -> Result<(), Error> {
     let new_fee: u64 = runtime::get_named_arg(ARG_ADMIN_FEE);
     let mut swap = read_swap_storage();
     swap_processor::set_admin_fee(&mut swap, new_fee);
+    save_swap_storage(&swap);
     Ok(())
 }
 
@@ -387,6 +389,7 @@ pub extern "C" fn set_swap_fee() -> Result<(), Error> {
     let new_fee: u64 = runtime::get_named_arg(ARG_SWAP_FEE);
     let mut swap = read_swap_storage();
     swap_processor::set_swap_fee(&mut swap, new_fee);
+    save_swap_storage(&swap);
     Ok(())
 }
 
@@ -397,6 +400,7 @@ pub extern "C" fn ramp_a() -> Result<(), Error> {
     let future_time: u64 = runtime::get_named_arg(ARG_FUTURE_TIME);
     let mut swap = read_swap_storage();
     ampl::ramp_a(&mut swap, future_a.as_u128(), future_time);
+    save_swap_storage(&swap);
     Ok(())
 }
 
@@ -405,5 +409,6 @@ pub extern "C" fn stop_ramp_a() -> Result<(), Error> {
     only_owner();
     let mut swap = read_swap_storage();
     ampl::stop_ramp_a(&mut swap);
+    save_swap_storage(&swap);
     Ok(())
 }

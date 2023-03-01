@@ -64,18 +64,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "14c189c53d098945499cdfa7ecc63567cf3886b3332b312a5b4585d8d3a6a610"
 
 [[package]]
-name = "cafi-dex"
-version = "0.1.0"
-dependencies = [
- "base64",
- "casper-contract",
- "casper-serde-json-wasm",
- "casper-types",
- "hex",
- "serde",
-]
-
-[[package]]
 name = "casper-contract"
 version = "1.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -570,6 +558,18 @@ checksum = "29f060a7d147e33490ec10da418795238fd7545bba241504d6b31a409f2e6210"
 dependencies = [
  "digest",
  "rand_core 0.5.1",
+]
+
+[[package]]
+name = "stableswap"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "casper-contract",
+ "casper-serde-json-wasm",
+ "casper-types",
+ "hex",
+ "serde",
 ]
 
 [[package]]
