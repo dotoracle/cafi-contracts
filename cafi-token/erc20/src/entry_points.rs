@@ -124,10 +124,9 @@ pub fn mint() -> EntryPoint {
     )
 }
 
-///mint entry point
-pub fn burn() -> EntryPoint {
+pub fn burn_from() -> EntryPoint {
     EntryPoint::new(
-        String::from(BURN_ENTRY_POINT_NAME),
+        String::from(BURN_FROM_ENTRY_POINT_NAME),
         vec![
             Parameter::new(OWNER_RUNTIME_ARG_NAME, Address::cl_type()),
             Parameter::new(AMOUNT_RUNTIME_ARG_NAME, U256::cl_type()),
@@ -138,6 +137,29 @@ pub fn burn() -> EntryPoint {
     )
 }
 
+pub fn burn() -> EntryPoint {
+    EntryPoint::new(
+        String::from(BURN_ENTRY_POINT_NAME),
+        vec![
+            Parameter::new(AMOUNT_RUNTIME_ARG_NAME, U256::cl_type()),
+        ],
+        CLType::Unit,
+        EntryPointAccess::Public,
+        EntryPointType::Contract,
+    )
+}
+
+pub fn set_minter() -> EntryPoint {
+    EntryPoint::new(
+        String::from("set_minter"),
+        vec![
+            Parameter::new("new_minter", CLType::Key),
+        ],
+        CLType::Unit,
+        EntryPointAccess::Public,
+        EntryPointType::Contract,
+    )
+}
 
 /// Returns the `decimals` entry point.
 pub fn decimals() -> EntryPoint {
@@ -164,5 +186,7 @@ pub fn default() -> EntryPoints {
     entry_points.add_entry_point(transfer_from());
     entry_points.add_entry_point(mint());
     entry_points.add_entry_point(burn());
+    entry_points.add_entry_point(burn_from());
+    entry_points.add_entry_point(set_minter());
     entry_points
 }

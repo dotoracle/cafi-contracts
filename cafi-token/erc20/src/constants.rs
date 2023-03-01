@@ -14,6 +14,7 @@ pub const BALANCES_KEY_NAME: &str = "balances";
 pub const ALLOWANCES_KEY_NAME: &str = "allowances";
 /// Name of named-key for `total_supply`
 pub const TOTAL_SUPPLY_KEY_NAME: &str = "total_supply";
+pub const MINTER_KEY_NAME: &str = "minter";
 
 /// Name of `name` entry point.
 pub const NAME_ENTRY_POINT_NAME: &str = "name";
@@ -55,3 +56,4 @@ pub const TOTAL_SUPPLY_RUNTIME_ARG_NAME: &str = "total_supply";
 
 pub const MINT_ENTRY_POINT_NAME : &str = "mint";
 pub const BURN_ENTRY_POINT_NAME : &str = "burn";
+pub const BURN_FROM_ENTRY_POINT_NAME : &str = "burn_from";
