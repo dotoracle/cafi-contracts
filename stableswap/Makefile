@@ -7,6 +7,9 @@ build-contract:
 
 test: build-contract
 	mkdir -p tests/wasm
+	cd tests/test-session && cargo build --release --target wasm32-unknown-unknown
+	wasm-strip target/wasm32-unknown-unknown/release/test-session.wasm 2>/dev/null | true
+	cp tests/test-session/target/wasm32-unknown-unknown/release/test-session.wasm tests/wasm
 	cp contracts/target/wasm32-unknown-unknown/release/contract.wasm tests/wasm
 	cd tests && cargo test -- --nocapture
 

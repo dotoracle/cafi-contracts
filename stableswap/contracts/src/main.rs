@@ -235,13 +235,13 @@ pub extern "C" fn calculate_token_amount() {
     runtime::ret(CLValue::from_t(U128::from(r)).unwrap_or_revert());    
 }
 
-// #[no_mangle]
-// pub extern "C" fn calculate_remove_liquidity() {
-//     let amount: U128 = runtime::get_named_arg(ARG_AMOUNT);
-//     let mut swap = read_swap_storage();
-//     let ret = swap_processor::calculate_remove_liquidity(&mut swap, amount.as_u128());
-//     runtime::ret(CLValue::from_t(CLTyped::List(Box::from(&ret))));    
-// }
+#[no_mangle]
+pub extern "C" fn calculate_remove_liquidity() {
+    let amount: U128 = runtime::get_named_arg(ARG_AMOUNT);
+    let mut swap = read_swap_storage();
+    let ret = swap_processor::calculate_remove_liquidity(&mut swap, amount.as_u128());
+    runtime::ret(CLValue::from_t(ret.into_iter().map(|x| U128::from(x)).collect::<Vec<U128>>()).unwrap_or_revert());    
+}
 
 #[no_mangle]
 pub extern "C" fn calculate_remove_liquidity_one_token() {

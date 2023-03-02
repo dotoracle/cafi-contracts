@@ -4,11 +4,12 @@ use casper_engine_test_support::{
 };
 
 use casper_types::{
-    account::AccountHash, runtime_args, system::mint,
+    account::AccountHash, bytesrepr::FromBytes, CLTyped, runtime_args, system::mint,
     ContractHash, ContractPackageHash, Key, PublicKey, RuntimeArgs, crypto::SecretKey, U256, U128
 };
 use std::convert::TryInto;
 const EXAMPLE_ERC20_TOKEN: &str = "erc20_token.wasm";
+const TEST_SESSION: &str = "test-session.wasm";
 const DEX_CONTRACT: &str = "contract.wasm";
 const ERC20_TOKEN_CONTRACT_KEY: &str = "erc20_token_contract";
 const ARG_NAME: &str = "name";
@@ -16,7 +17,7 @@ const ARG_SYMBOL: &str = "symbol";
 const ARG_DECIMALS: &str = "decimals";
 const ARG_TOTAL_SUPPLY: &str = "total_supply";
 const ARG_NEW_MINTER: &str = "new_minter";
-
+const RESULT_KEY: &str = "result";
 const TOKEN_TOTAL_SUPPLY: u128 = 1_000_000_000_000_000_000_000_000_000;
 
 
@@ -46,6 +47,42 @@ fn get_account2_addr() -> AccountHash {
     a
 }
 
+fn get_test_result<T: FromBytes + CLTyped>(
+    builder: &mut InMemoryWasmTestBuilder,
+    test_session: ContractPackageHash,
+) -> T {
+    let contract_package = builder
+        .get_contract_package(test_session)
+        .expect("should have contract package");
+    let enabled_versions = contract_package.enabled_versions();
+    let (_version, contract_hash) = enabled_versions
+        .iter()
+        .rev()
+        .next()
+        .expect("should have latest version");
+
+    builder.get_value(*contract_hash, RESULT_KEY)
+}
+
+fn call_and_get<T: FromBytes + CLTyped>(
+    builder: &mut InMemoryWasmTestBuilder,
+    test_session: ContractPackageHash,
+    func_name: &str,
+    args: RuntimeArgs
+) -> T {
+    let exec_request = ExecuteRequestBuilder::versioned_contract_call_by_hash(
+        *DEFAULT_ACCOUNT_ADDR,
+        test_session,
+        None,
+        func_name,
+        args,
+    )
+    .build();
+    builder.exec(exec_request).expect_success().commit();
+
+    get_test_result(builder, test_session)
+}
+
 /// Converts hash addr of Account into Hash, and Hash into Account
 ///
 /// This is useful for making sure ERC20 library respects different variants of Key when storing
@@ -65,7 +102,8 @@ struct TestContext {
     // dai_token: ContractHash,
     dex_contract: ContractHash,
     lp_token: ContractHash,
-    dex_contract_package_hash: ContractPackageHash
+    dex_contract_package_hash: ContractPackageHash,
+    test_session: ContractPackageHash
 }
 
 fn exec_call(builder: &mut InMemoryWasmTestBuilder, account_hash: AccountHash, contract_hash: ContractHash, fun_name: &str, args: RuntimeArgs, expect_success: bool) {
@@ -140,11 +178,19 @@ fn setup() -> (InMemoryWasmTestBuilder, TestContext) {
     )
     .build();
 
+    let install_test_session = ExecuteRequestBuilder::standard(
+        *DEFAULT_ACCOUNT_ADDR,
+        TEST_SESSION,
+        runtime_args! {}
+    )
+    .build();
+
     builder.exec(transfer_request_1).expect_success().commit();
     builder.exec(transfer_request_2).expect_success().commit();
     builder.exec(install_request_1).expect_success().commit();
     builder.exec(install_request_2).expect_success().commit();
     builder.exec(install_request_3).expect_success().commit();
+    builder.exec(install_test_session).expect_success().commit();
 
     let account = builder
         .get_account(*DEFAULT_ACCOUNT_ADDR)
@@ -162,6 +208,32 @@ fn setup() -> (InMemoryWasmTestBuilder, TestContext) {
         .get(&get_token_key_name("USDT".to_string()))
         .and_then(|key| key.into_hash())
         .map(ContractHash::new)
+        .expect("should have contract hash");
+
+    exec_call(&mut builder, *DEFAULT_ACCOUNT_ADDR, usdc_token, "transfer", runtime_args! {
+        "recipient" => Key::from(get_account1_addr()),
+        "amount" => U256::from(1_000_000_000_000_000_000_000_000u128)
+    }, true);
+    exec_call(&mut builder, *DEFAULT_ACCOUNT_ADDR, usdt_token, "transfer", runtime_args! {
+        "recipient" => Key::from(get_account1_addr()),
+        "amount" => U256::from(1_000_000_000_000_000_000_000_000u128)
+    }, true);
+
+    exec_call(&mut builder, *DEFAULT_ACCOUNT_ADDR, usdc_token, "transfer", runtime_args! {
+        "recipient" => Key::from(get_account2_addr()),
+        "amount" => U256::from(1_000_000_000_000_000_000_000_000u128)
+    }, true);
+    exec_call(&mut builder, *DEFAULT_ACCOUNT_ADDR, usdt_token, "transfer", runtime_args! {
+        "recipient" => Key::from(get_account2_addr()),
+        "amount" => U256::from(1_000_000_000_000_000_000_000_000u128)
+    }, true);
+
+
+    let test_session = account
+        .named_keys()
+        .get("test_session")
+        .and_then(|key| key.into_hash())
+        .map(ContractPackageHash::new)
         .expect("should have contract hash");
 
     // let dai_token = account
@@ -241,12 +313,23 @@ fn setup() -> (InMemoryWasmTestBuilder, TestContext) {
         usdt_token,
         dex_contract,
         dex_contract_package_hash,
-        lp_token
+        lp_token,
+        test_session
     };
 
     let tokens: Vec<ContractHash> = vec![tc.usdc_token, tc.usdt_token];
     for token in tokens {
         exec_call(&mut builder, *DEFAULT_ACCOUNT_ADDR, token, "approve", runtime_args! {
+            "spender" => Key::from(tc.dex_contract_package_hash),
+            "amount" => U256::from(TOKEN_TOTAL_SUPPLY)
+        }, true);
+
+        exec_call(&mut builder, get_account1_addr(), token, "approve", runtime_args! {
+            "spender" => Key::from(tc.dex_contract_package_hash),
+            "amount" => U256::from(TOKEN_TOTAL_SUPPLY)
+        }, true);
+
+        exec_call(&mut builder, get_account2_addr(), token, "approve", runtime_args! {
             "spender" => Key::from(tc.dex_contract_package_hash),
             "amount" => U256::from(TOKEN_TOTAL_SUPPLY)
         }, true);
@@ -322,12 +405,75 @@ fn test_add_liquidity_revert_must_supply_all_tokens_inpool() {
 #[test]
 fn test_add_liquidity_success_with_expected_output_amount() {
     let (mut builder, tc) = setup();
+    let calculated_token_amount: U128 = call_and_get(
+        &mut builder,
+        tc.test_session,
+        "calculate_token_amount",
+        runtime_args! {
+            "contract_hash" => tc.dex_contract,
+            "amounts" => vec![U128::from(1_000_000_000_000_000_000u128), U128::from(3_000_000_000_000_000_000u128)],
+            "deposit" => true
+        }
+    );
 
-    exec_call(&mut builder, *DEFAULT_ACCOUNT_ADDR, tc.dex_contract, "add_liquidity", runtime_args! {
-        "amounts" => vec![U128::zero(), U128::from(3_000_000_000_000_000_000u128)],
-        "min_to_mint" => U128::max_value(),
+    let calculated_token_amount_with_slippage = calculated_token_amount * 999 / 1000;
+
+    exec_call(&mut builder, get_account1_addr(), tc.dex_contract, "add_liquidity", runtime_args! {
+        "amounts" => vec![U128::from(1_000_000_000_000_000_000u128), U128::from(3_000_000_000_000_000_000u128)],
+        "min_to_mint" => calculated_token_amount_with_slippage,
         "deadline" => 99999999999999u64
-    }, false);
+    }, true);
+
+    let actual_pool_token_amount: U128 = call_and_get(
+        &mut builder,
+        tc.test_session,
+        "get_balance",
+        runtime_args! {
+            "contract_hash" => tc.lp_token,
+            "address" => Key::from(get_account1_addr())
+        }
+    );
+
+    assert_eq!(actual_pool_token_amount.as_u128(), 3991672211258372957u128);
+}
+
+
+#[test]
+fn test_add_liquidity_success_with_actual_output_amount_within_range() {
+    let (mut builder, tc) = setup();
+    let calculated_token_amount: U128 = call_and_get(
+        &mut builder,
+        tc.test_session,
+        "calculate_token_amount",
+        runtime_args! {
+            "contract_hash" => tc.dex_contract,
+            "amounts" => vec![U128::from(1_000_000_000_000_000_000u128), U128::from(3_000_000_000_000_000_000u128)],
+            "deposit" => true
+        }
+    );
+
+    let calculated_token_amount_with_negative_slippage: U128 = calculated_token_amount * 999 / 1000;
+    let calculated_token_amount_with_positive_slippage: U128 = calculated_token_amount * 1001 / 1000;
+
+
+    exec_call(&mut builder, get_account1_addr(), tc.dex_contract, "add_liquidity", runtime_args! {
+        "amounts" => vec![U128::from(1_000_000_000_000_000_000u128), U128::from(3_000_000_000_000_000_000u128)],
+        "min_to_mint" => calculated_token_amount_with_negative_slippage,
+        "deadline" => 99999999999999u64
+    }, true);
+
+    let actual_pool_token_amount: U128 = call_and_get(
+        &mut builder,
+        tc.test_session,
+        "get_balance",
+        runtime_args! {
+            "contract_hash" => tc.lp_token,
+            "address" => Key::from(get_account1_addr())
+        }
+    );
+
+    assert!(actual_pool_token_amount.as_u128() >= calculated_token_amount_with_negative_slippage.as_u128());
+    assert!(actual_pool_token_amount.as_u128() <= calculated_token_amount_with_positive_slippage.as_u128());
 }
 
 
