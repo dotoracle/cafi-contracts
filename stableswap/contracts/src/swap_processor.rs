@@ -2,11 +2,9 @@ use alloc::{
     vec::*,
     vec
 };
-use crate::alloc::string::ToString;
 use casper_contract::{
     contract_api::{
-        runtime,
-        runtime::print
+        runtime
     }
 };
 use casper_types::{
@@ -129,15 +127,14 @@ fn calculate_withdraw_one_token_dy(
         // if i == tokenIndex, dxExpected = xp[i] * d1 / d0 - newY
         // else dxExpected = xp[i] - (xp[i] * d1 / d0)
         // xpReduced[i] -= dxExpected * fee / FEE_DENOMINATOR
-        xp_reduced[i] = xpi - (
-            mul_div((
+        xp_reduced[i] = xpi - mul_div(
                 if i == token_index {
                     mul_div(xpi, v.d1, v.d0) - v.new_y
                 } else {
                     xpi - mul_div(xpi, v.d1, v.d0)
                 }
-            ), v.fee_per_token, FEE_DENOMINATOR)
-        );
+                , v.fee_per_token, FEE_DENOMINATOR
+            );
     }
 
     let mut dy = xp_reduced[token_index] - (
@@ -182,13 +179,13 @@ fn get_yd(
     for i in 0..num_tokens {
         if i != token_index {
             s = s + xp[i];
-            c = mul_div(c, d, (xp[i] * (num_tokens as u128)));
+            c = mul_div(c, d, xp[i] * (num_tokens as u128));
             // If we were to protect the division loss we would have to keep the denominator separate
             // and divide at the end. However this leads to overflow with large numTokens or/and D.
             // c = c * D * D * D * ... overflow!
         }
     }
-    c = mul_div(c, d * ampl::A_PRECISION, (n_a * (num_tokens as u128)));
+    c = mul_div(c, d * ampl::A_PRECISION, n_a * (num_tokens as u128));
 
     let b = s + mul_div(d, ampl::A_PRECISION, n_a);
     let mut y_prev
@@ -230,16 +227,15 @@ fn get_d(xp: &Vec<u128>, a: u128) -> u128
     for _i in 0..MAX_LOOP_LIMIT {
         let mut d_p = d;
         for j in 0..num_tokens {
-            d_p = mul_div(d_p, d, (xp[j] * (num_tokens as u128)));
+            d_p = mul_div(d_p, d, xp[j] * (num_tokens as u128));
             // If we were to protect the division loss we would have to keep the denominator separate
             // and divide at the end. However this leads to overflow with large numTokens or/and D.
             // dP = dP * D * D * D * ... overflow!
         }
 
         prev_d = d;
-        d = mul_div((mul_div(n_a, s, ampl::A_PRECISION) + d_p * (num_tokens as u128)), d, (
-                mul_div((n_a - ampl::A_PRECISION), d, ampl::A_PRECISION) + ((num_tokens + 1) as u128) * d_p
-            ));
+        d = mul_div(mul_div(n_a, s, ampl::A_PRECISION) + d_p * (num_tokens as u128), d, 
+                mul_div(n_a - ampl::A_PRECISION, d, ampl::A_PRECISION) + ((num_tokens + 1) as u128) * d_p);
         // print(&d.to_string());
         // print(&prev_d.to_string());
         if math_utils::within1(d, prev_d) {
@@ -282,7 +278,7 @@ pub fn get_virtual_price(swap: &Swap) -> u128
         runtime_args! {},
     );
     if supply.as_u128() > 0 {
-        return mul_div(d, (10u128).pow(POOL_PRECISION_DECIMALS as u32), (supply.as_u128()))
+        return mul_div(d, (10u128).pow(POOL_PRECISION_DECIMALS as u32), supply.as_u128())
     }
     return 0;
 }
@@ -333,13 +329,13 @@ fn get_y(
             continue;
         }
         s = s + _x;
-        c = mul_div(c, d, (_x * num_tokens));
+        c = mul_div(c, d, _x * num_tokens);
         // If we were to protect the division loss we would have to keep the denominator separate
         // and divide at the end. However this leads to overflow with large numTokens or/and D.
         // c = c * D * D * D * ... overflow!
     }
-    c = mul_div(c, d * ampl::A_PRECISION, (na * num_tokens));
-    let b = s + mul_div(d, (ampl::A_PRECISION), na);
+    c = mul_div(c, d * ampl::A_PRECISION, na * num_tokens);
+    let b = s + mul_div(d, ampl::A_PRECISION, na);
 
     let mut y_prev;
     let mut y = d;
@@ -416,7 +412,7 @@ fn _calculate_swap(
         &xp
     );
     let mut dy = xp[token_index_to] - y - 1;
-    let dy_fee = mul_div(dy, (swap.swap_fee as u128), FEE_DENOMINATOR);
+    let dy_fee = mul_div(dy, swap.swap_fee as u128, FEE_DENOMINATOR);
     dy = (dy - dy_fee) / multipliers[token_index_to];
     (dy, dy_fee)
 }
@@ -526,7 +522,7 @@ pub fn get_admin_balance(swap: &Swap, index: usize) -> u128
 */
 fn _fee_per_token(swap_fee: u128, num_tokens: u128) -> u128
 {
-    mul_div(swap_fee, (num_tokens as u128), (((num_tokens -1) * 4) as u128))
+    mul_div(swap_fee, num_tokens as u128, ((num_tokens -1) * 4) as u128)
 }
 
 pub fn swap(
@@ -563,7 +559,7 @@ pub fn swap(
     );
     require(dy >= min_dy, Error::SwapNotResultInMinToken);
 
-    let dy_admin_fee = mul_div(dy_fee, (swap.admin_fee as u128),FEE_DENOMINATOR) / (
+    let dy_admin_fee = mul_div(dy_fee, swap.admin_fee as u128,FEE_DENOMINATOR) / (
         swap.token_precision_multipliers[token_index_to]
     );
 
@@ -644,8 +640,8 @@ pub fn add_liquidity(
         );
         for i in 0..pooled_tokens.len() {
             let ideal_balance = mul_div(v.d1, v.balances[i], v.d0);
-            fees[i] = mul_div(fee_per_token, (math_utils::difference(ideal_balance, new_balances[i])), FEE_DENOMINATOR);
-            swap.balances[i] = new_balances[i] - mul_div(fees[i], (swap.admin_fee as u128), FEE_DENOMINATOR);
+            fees[i] = mul_div(fee_per_token, math_utils::difference(ideal_balance, new_balances[i]), FEE_DENOMINATOR);
+            swap.balances[i] = new_balances[i] - mul_div(fees[i], swap.admin_fee as u128, FEE_DENOMINATOR);
             new_balances[i] = new_balances[i] - fees[i];
         }
         v.d2 = get_d(&_xp(&new_balances, &v.multipliers), v.precise_a);
@@ -753,7 +749,7 @@ pub fn remove_liquidity_one_token(
 
     require(dy >= min_amount, Error::DYLessThanAmount);
 
-    swap.balances[token_index] = swap.balances[token_index] - dy + mul_div(dy_fee, (swap.admin_fee as u128), FEE_DENOMINATOR);
+    swap.balances[token_index] = swap.balances[token_index] - dy + mul_div(dy_fee, swap.admin_fee as u128, FEE_DENOMINATOR);
     let _: () = runtime::call_contract(
         ContractHash::new(lp_token.into_hash().unwrap()),
         "burn_from",
@@ -821,7 +817,7 @@ pub fn remove_liquidity_imbalance(
             let ideal_balance = mul_div(v.d1, v.balances[i], v.d0);
             let difference = math_utils::difference(ideal_balance, balances1[i]);
             fees[i] = mul_div(fee_per_token, difference, FEE_DENOMINATOR);
-            swap.balances[i] = balances1[i] - mul_div(fees[i], (swap.admin_fee as u128), FEE_DENOMINATOR);
+            swap.balances[i] = balances1[i] - mul_div(fees[i], swap.admin_fee as u128, FEE_DENOMINATOR);
             balances1[i] = balances1[i] - fees[i];
         }
 

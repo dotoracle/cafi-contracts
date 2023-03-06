@@ -341,6 +341,7 @@ fn setup() -> (InMemoryWasmTestBuilder, TestContext) {
         "min_to_mint" => U128::from(0),
         "deadline" => 99999999999999u64
     }, true);
+    println!("gas add_liquidity {:?}", builder.last_exec_gas_cost());
 
     (builder, tc)
 }

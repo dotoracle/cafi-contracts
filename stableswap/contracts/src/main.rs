@@ -29,7 +29,7 @@ use crate::lock::*;
 use crate::pausable::*;
 use crate::owner::*;
 use alloc::{
-    string::{String, ToString},
+    string::{String},
     vec::*,
     vec
 };
@@ -104,10 +104,7 @@ pub extern "C" fn init() {
         token_precision_multipliers: precision_multipliers,
         balances: vec![0; pooled_tokens.len()]
     };
-    runtime::put_key(
-        SWAP_STORAGE,
-        storage::new_uref(casper_serde_json_wasm::to_string(&swap_storage).unwrap()).into(),
-    );
+    save_swap_storage(&swap_storage);
 }
 
 #[no_mangle]
@@ -161,12 +158,12 @@ fn call() {
 }
 
 fn read_swap_storage() -> structs::Swap {
-    let str: String = helpers::get_key(SWAP_STORAGE).unwrap();
-    casper_serde_json_wasm::from_str::<structs::Swap>(&str).unwrap()
+    let swap: structs::Swap = helpers::get_key(SWAP_STORAGE).unwrap();
+    swap
 }
 
 fn save_swap_storage(swap: &structs::Swap) {
-    helpers::set_key(SWAP_STORAGE, casper_serde_json_wasm::to_string(swap).unwrap());
+    helpers::set_key(SWAP_STORAGE, swap.clone());
 }
 
 fn deadline_check(deadline: u64) {
